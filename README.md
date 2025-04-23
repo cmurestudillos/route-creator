@@ -48,7 +48,7 @@ RouteCreator es una aplicación de escritorio para crear, editar y gestionar rut
 
 1. Clona este repositorio:
 ```bash
-git clone https://github.com/tu-usuario/route-creator.git
+git clone https://github.com/cmurestudillos/route-creator.git
 cd route-creator
 ```
 
@@ -139,9 +139,3 @@ Características planeadas para futuras versiones:
 - [ ] Exportación a otros formatos además de GPX
 - [ ] Aplicación móvil complementaria
 - [ ] Integración con Strava y otras plataformas
-
-## 📞 Contacto
-
-Tu Nombre - [@tu_twitter](https://twitter.com/tu_twitter) - email@ejemplo.com
-
-Link del proyecto: [https://github.com/tu-usuario/route-creator](https://github.com/tu-usuario/route-creator)
