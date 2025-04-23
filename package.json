@@ -1,0 +1,47 @@
+{
+  "name": "route-creator",
+  "version": "1.0.0",
+  "description": "Aplicación para crear rutas de MTB, ciclismo en ruta y autocaravanas y exportarlas como GPX",
+  "main": "main.js",
+  "scripts": {
+    "start": "electron .",
+    "package:mac": "electron-builder build --mac",
+    "package:win": "electron-builder build --windows",
+    "package:linux": "electron-builder build --linux"
+  },
+  "author": "Carlos Mur",
+  "license": "MIT",
+  "dependencies": {
+    "electron-store": "^8.1.0",
+    "fast-xml-parser": "^4.2.2",
+    "leaflet": "^1.7.1",
+    "node-fetch": "^2.6.7"
+  },
+  "devDependencies": {
+    "electron": "^22.0.0",
+    "electron-builder": "^24.4.0",
+    "eslint": "^9.22.0",
+    "eslint-config-prettier": "^10.1.1",
+    "eslint-plugin-jsdoc": "^50.6.8",
+    "eslint-plugin-prettier": "^5.2.3",
+    "prettier": "^3.5.3"
+  },
+  "build": {
+    "appId": "com.cmurestudillos.mac-notepad-app",
+    "productName": "MAC Notepad ++",
+    "directories": {
+      "output": "release/"
+    },
+    "mac": {
+      "category": "public.app-category.developer-tools",
+      "icon": "assets/icon.icns"
+    },
+    "win": {
+      "icon": "assets/icon.ico"
+    },
+    "linux": {
+      "icon": "assets/icon.png",
+      "category": "Development"
+    }
+  }
+}

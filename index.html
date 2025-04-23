@@ -1,0 +1,422 @@
+<!doctype html>
+<html lang="es">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>RouteCreator - Creador de Rutas GPX</title>
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.7.1/dist/leaflet.css" />
+    <style>
+      body,
+      html {
+        margin: 0;
+        padding: 0;
+        font-family: Arial, sans-serif;
+        height: 100%;
+        overflow: hidden;
+      }
+      .container {
+        display: flex;
+        height: 100vh;
+      }
+      .sidebar {
+        width: 300px;
+        background-color: #f5f5f5;
+        padding: 15px;
+        overflow-y: auto;
+      }
+      .map-container {
+        flex: 1;
+        height: 100%;
+      }
+      #map {
+        height: 100%;
+        width: 100%;
+      }
+      .form-group {
+        margin-bottom: 15px;
+      }
+      label {
+        display: block;
+        margin-bottom: 5px;
+        font-weight: bold;
+      }
+      input,
+      select,
+      button {
+        width: 100%;
+        padding: 8px;
+        box-sizing: border-box;
+      }
+      button {
+        background-color: #4caf50;
+        color: white;
+        border: none;
+        border-radius: 4px;
+        cursor: pointer;
+        margin-top: 5px;
+      }
+      button:hover {
+        background-color: #45a049;
+      }
+      .waypoint-list {
+        margin-top: 20px;
+        max-height: 300px;
+        overflow-y: auto;
+      }
+      .waypoint-item {
+        padding: 8px;
+        background-color: #e9e9e9;
+        margin-bottom: 5px;
+        border-radius: 4px;
+        display: flex;
+        justify-content: space-between;
+      }
+      .waypoint-item button {
+        width: auto;
+        background-color: #f44336;
+        margin: 0;
+      }
+      .actions {
+        margin-top: 20px;
+      }
+      .route-summary {
+        margin-top: 20px;
+        padding: 10px;
+        background-color: #f0f8ff;
+        border-left: 4px solid #4caf50;
+        border-radius: 4px;
+      }
+      #route-stats p {
+        margin: 5px 0;
+        font-size: 14px;
+      }
+      .button-group {
+        display: flex;
+        gap: 5px;
+      }
+      .mode-button {
+        flex: 1;
+        padding: 8px;
+        background-color: #e0e0e0;
+        color: #333;
+        border: none;
+        border-radius: 4px;
+        cursor: pointer;
+      }
+      .mode-button.active {
+        background-color: #4caf50;
+        color: white;
+      }
+      .secondary-button {
+        background-color: #2196f3;
+        margin-top: 8px;
+      }
+      .poi-item {
+        padding: 8px;
+        background-color: #ffe0b2;
+        margin-bottom: 5px;
+        border-radius: 4px;
+        display: flex;
+        justify-content: space-between;
+        border-left: 4px solid #ff9800;
+      }
+      .poi-item[data-type='parking'] {
+        border-left-color: #3f51b5;
+        background-color: #e8eaf6;
+      }
+      .poi-item[data-type='service'] {
+        border-left-color: #e91e63;
+        background-color: #fce4ec;
+      }
+      .poi-item[data-type='water'] {
+        border-left-color: #2196f3;
+        background-color: #e3f2fd;
+      }
+      .poi-item[data-type='fuel'] {
+        border-left-color: #ff5722;
+        background-color: #fbe9e7;
+      }
+      .poi-item[data-type='lpg'] {
+        border-left-color: #9c27b0;
+        background-color: #f3e5f5;
+      }
+      .poi-item[data-type='viewpoint'] {
+        border-left-color: #4caf50;
+        background-color: #e8f5e9;
+      }
+      .poi-container {
+        margin-top: 10px;
+        max-height: 200px;
+        overflow-y: auto;
+      }
+      .routing-actions {
+        background-color: #f9f9f9;
+        border-radius: 4px;
+        padding: 10px;
+        margin-top: 15px;
+        border-left: 4px solid #2196f3;
+      }
+
+      .info-text {
+        font-size: 12px;
+        color: #666;
+        margin-top: 8px;
+      }
+
+      #calculate-route {
+        background-color: #2196f3;
+      }
+
+      #calculate-route:hover {
+        background-color: #0b7dda;
+      }
+
+      .offline-actions {
+        background-color: #f9f9f9;
+        border-radius: 4px;
+        padding: 10px;
+        margin-top: 15px;
+        border-left: 4px solid #9c27b0;
+      }
+
+      #save-offline {
+        background-color: #9c27b0;
+      }
+
+      #save-offline:hover {
+        background-color: #7b1fa2;
+      }
+
+      #toggle-offline-mode {
+        background-color: #673ab7;
+      }
+
+      #toggle-offline-mode:hover {
+        background-color: #512da8;
+      }
+
+      .progress-container {
+        margin-top: 8px;
+      }
+
+      progress {
+        width: 100%;
+        height: 10px;
+      }
+
+      #offline-status {
+        font-size: 12px;
+        color: #555;
+      }
+    </style>
+  </head>
+  <body>
+    <div class="container">
+      <div class="sidebar">
+        <h1>RouteCreator</h1>
+        <div class="form-group">
+          <label for="route-name">Nombre de la Ruta:</label>
+          <input type="text" id="route-name" placeholder="Mi ruta favorita" />
+        </div>
+
+        <div class="form-group">
+          <label for="route-type">Tipo de Ruta:</label>
+          <select id="route-type">
+            <option value="MTB">MTB</option>
+            <option value="Road">Ciclismo en Ruta</option>
+            <option value="Motorhome">Autocaravana</option>
+          </select>
+        </div>
+
+        <!-- Modos de edición -->
+        <div class="form-group" id="edit-mode-container">
+          <label>Modo de edición:</label>
+          <div class="button-group">
+            <button id="route-mode" class="mode-button active">Ruta</button>
+            <button id="poi-mode" class="mode-button">Puntos de interés</button>
+          </div>
+        </div>
+
+        <!-- Opciones específicas según tipo de ruta -->
+        <div id="route-specific-options">
+          <!-- Las opciones se cargarán dinámicamente según el tipo de ruta -->
+
+          <!-- Opciones de MTB -->
+          <div id="mtb-options" class="route-options">
+            <div class="form-group">
+              <label for="mtb-difficulty">Dificultad técnica:</label>
+              <select id="mtb-difficulty">
+                <option value="easy">Fácil</option>
+                <option value="medium">Media</option>
+                <option value="hard">Difícil</option>
+                <option value="expert">Experto</option>
+              </select>
+            </div>
+            <div class="form-group">
+              <label for="mtb-surface">Tipo de superficie:</label>
+              <select id="mtb-surface">
+                <option value="trail">Sendero</option>
+                <option value="forest">Pista forestal</option>
+                <option value="rocky">Terreno rocoso</option>
+                <option value="mixed">Mixto</option>
+              </select>
+            </div>
+          </div>
+
+          <!-- Opciones de Ciclismo en Ruta -->
+          <div id="road-options" class="route-options" style="display: none">
+            <div class="form-group">
+              <label for="road-traffic">Nivel de tráfico:</label>
+              <select id="road-traffic">
+                <option value="low">Bajo</option>
+                <option value="medium">Medio</option>
+                <option value="high">Alto</option>
+              </select>
+            </div>
+            <div class="form-group">
+              <label for="road-surface">Calidad del asfalto:</label>
+              <select id="road-surface">
+                <option value="excellent">Excelente</option>
+                <option value="good">Buena</option>
+                <option value="fair">Regular</option>
+                <option value="poor">Deficiente</option>
+              </select>
+            </div>
+          </div>
+
+          <!-- Opciones de Autocaravana -->
+          <div id="motorhome-options" class="route-options" style="display: none">
+            <div class="form-group">
+              <label for="motorhome-height">Altura máxima (m):</label>
+              <input type="number" id="motorhome-height" value="3.5" step="0.1" min="2.0" max="4.5" />
+            </div>
+            <div class="form-group">
+              <label for="motorhome-parking">Incluir áreas de pernocta:</label>
+              <input type="checkbox" id="motorhome-parking" checked style="width: auto" />
+            </div>
+            <div class="form-group">
+              <label for="motorhome-roads">Tipo de carreteras:</label>
+              <select id="motorhome-roads">
+                <option value="highways">Autopistas/Autovías</option>
+                <option value="national">Nacionales</option>
+                <option value="secondary">Secundarias</option>
+                <option value="mixed">Mixto</option>
+              </select>
+            </div>
+
+            <!-- Añadir puntos de interés para autocaravanas -->
+            <div class="form-group">
+              <label>Añadir punto de interés:</label>
+              <select id="poi-type">
+                <option value="parking">Área de pernocta</option>
+                <option value="service">Área de servicio</option>
+                <option value="water">Punto de agua</option>
+                <option value="fuel">Gasolinera</option>
+                <option value="lpg">Punto de recarga de GLP</option>
+                <option value="viewpoint">Mirador</option>
+              </select>
+              <button id="add-poi" type="button" class="secondary-button">Añadir POI</button>
+            </div>
+          </div>
+        </div>
+
+        <div class="waypoint-list">
+          <h3>Puntos de la Ruta</h3>
+          <div id="waypoints-container">
+            <!-- Los waypoints se añadirán aquí dinámicamente -->
+          </div>
+        </div>
+
+        <!-- Resumen de la ruta -->
+        <div class="route-summary">
+          <h3>Resumen de la Ruta</h3>
+          <div id="route-stats">
+            <p>Puntos: <span id="point-count">0</span></p>
+            <p>Distancia total: <span id="total-distance">0.00</span> km</p>
+            <p>Puntos de interés: <span id="poi-count">0</span></p>
+          </div>
+        </div>
+
+        <!-- Lista de puntos de interés -->
+        <div id="poi-list" class="poi-container" style="display: none">
+          <h3>Puntos de Interés</h3>
+          <div id="pois-container">
+            <!-- Los POIs se añadirán aquí dinámicamente -->
+          </div>
+        </div>
+
+        <!-- Acciones principales -->
+        <div class="actions">
+          <button id="clear-route" type="button">Limpiar Ruta</button>
+          <button id="import-gpx" type="button">Importar GPX</button>
+          <button id="save-gpx" type="button">Exportar como GPX</button>
+        </div>
+
+        <!-- Sección de enrutamiento automático -->
+        <div class="actions routing-actions">
+          <h3>Enrutamiento automático</h3>
+          <div class="form-group">
+            <label for="routing-profile">Perfil de ruta:</label>
+            <select id="routing-profile">
+              <option value="driving-car">Automóvil</option>
+              <option value="driving-hgv">Vehículo pesado (Autocaravana)</option>
+              <option value="cycling-regular">Ciclismo en ruta</option>
+              <option value="cycling-mountain">MTB/BTT</option>
+              <option value="foot-hiking">A pie (senderismo)</option>
+            </select>
+          </div>
+          <button id="calculate-route" type="button">Calcular ruta automática</button>
+          <p class="info-text" id="routing-status">
+            Selecciona al menos 2 puntos en el mapa para calcular una ruta automática.
+          </p>
+        </div>
+
+        <!-- Sección de soporte offline -->
+        <div class="actions offline-actions">
+          <h3>Mapas sin conexión</h3>
+          <div class="form-group">
+            <label for="offline-zoom-min">Zoom mínimo:</label>
+            <input type="number" id="offline-zoom-min" value="10" min="1" max="17" />
+          </div>
+          <div class="form-group">
+            <label for="offline-zoom-max">Zoom máximo:</label>
+            <input type="number" id="offline-zoom-max" value="15" min="1" max="17" />
+          </div>
+          <div class="form-group">
+            <button id="save-offline" type="button">Guardar área visible para uso offline</button>
+            <div class="progress-container" style="display: none">
+              <progress id="offline-progress" value="0" max="100"></progress>
+              <span id="offline-status">0%</span>
+            </div>
+          </div>
+          <div class="form-group">
+            <button id="toggle-offline-mode" type="button" class="secondary-button">Activar modo offline</button>
+          </div>
+          <p class="info-text">El área visible actual del mapa se guardará para uso sin conexión.</p>
+        </div>
+
+        <div class="instructions">
+          <h3>Instrucciones</h3>
+          <p>
+            Haz clic en el mapa para añadir puntos a tu ruta. Puedes arrastrar los marcadores para ajustar su posición.
+            Cuando hayas terminado, haz clic en "Exportar como GPX" para guardar tu ruta en formato compatible con
+            Garmin.
+          </p>
+          <p>
+            También puedes importar archivos GPX existentes usando el botón "Importar GPX" y luego modificarlos según
+            tus necesidades.
+          </p>
+        </div>
+      </div>
+
+      <div class="map-container">
+        <div id="map"></div>
+      </div>
+    </div>
+
+    <!-- Scripts -->
+    <script src="https://unpkg.com/leaflet@1.7.1/dist/leaflet.js"></script>
+    <script src="https://unpkg.com/localforage@1.10.0/dist/localforage.min.js"></script>
+    <script src="renderer.js"></script>
+  </body>
+</html>
