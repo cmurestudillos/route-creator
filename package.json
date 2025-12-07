@@ -27,8 +27,8 @@
     "prettier": "^3.5.3"
   },
   "build": {
-    "appId": "com.cmurestudillos.mac-notepad-app",
-    "productName": "MAC Notepad ++",
+    "appId": "com.cmurestudillos.routecreator",
+    "productName": "Route Creator",
     "directories": {
       "output": "release/"
     },
