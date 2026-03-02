@@ -18,8 +18,8 @@
     "node-fetch": "^2.6.7"
   },
   "devDependencies": {
-    "electron": "^22.0.0",
-    "electron-builder": "^24.4.0",
+    "electron": "^40.6.1",
+    "electron-builder": "^26.8.1",
     "eslint": "^9.22.0",
     "eslint-config-prettier": "^10.1.1",
     "eslint-plugin-jsdoc": "^50.6.8",
