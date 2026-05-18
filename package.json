@@ -1,10 +1,15 @@
 {
   "name": "route-creator",
-  "version": "1.0.0",
+  "version": "1.1.0",
   "description": "Aplicación para crear rutas de MTB, ciclismo en ruta y autocaravanas y exportarlas como GPX",
   "main": "main.js",
+  "packageManager": "pnpm@11.1.2",
   "scripts": {
     "start": "electron .",
+    "lint": "eslint .",
+    "lint:fix": "eslint . --fix",
+    "format": "prettier --write .",
+    "format:check": "prettier --check .",
     "package:mac": "electron-builder build --mac",
     "package:win": "electron-builder build --windows",
     "package:linux": "electron-builder build --linux"

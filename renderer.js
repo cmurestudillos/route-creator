@@ -11,7 +11,7 @@ let pois = [];
 
 // Variables para el enrutamiento
 let routingLayer; // Capa para mostrar la ruta calculada
-const OPENROUTE_API_KEY = '5b3ce3597851110001cf6248625e8f0414d94952b2d5162d79b2ed44'; // Clave de API gratuita
+let OPENROUTE_API_KEY = ''; // Se carga desde config.json en DOMContentLoaded
 
 // Variables para el soporte offline
 let isOfflineMode = false;
@@ -20,7 +20,8 @@ let tileLayerOffline;
 // Iconos personalizados para POIs
 const poiIcons = {
   parking: L.icon({
-    iconUrl: 'https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.7.1/images/marker-icon.png',
+    iconUrl: './node_modules/leaflet/dist/images/marker-icon.png',
+    shadowUrl: './node_modules/leaflet/dist/images/marker-shadow.png',
     iconSize: [25, 41],
     iconAnchor: [12, 41],
     popupAnchor: [1, -34],
@@ -28,7 +29,8 @@ const poiIcons = {
     className: 'poi-icon parking-icon',
   }),
   service: L.icon({
-    iconUrl: 'https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.7.1/images/marker-icon.png',
+    iconUrl: './node_modules/leaflet/dist/images/marker-icon.png',
+    shadowUrl: './node_modules/leaflet/dist/images/marker-shadow.png',
     iconSize: [25, 41],
     iconAnchor: [12, 41],
     popupAnchor: [1, -34],
@@ -36,7 +38,8 @@ const poiIcons = {
     className: 'poi-icon service-icon',
   }),
   water: L.icon({
-    iconUrl: 'https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.7.1/images/marker-icon.png',
+    iconUrl: './node_modules/leaflet/dist/images/marker-icon.png',
+    shadowUrl: './node_modules/leaflet/dist/images/marker-shadow.png',
     iconSize: [25, 41],
     iconAnchor: [12, 41],
     popupAnchor: [1, -34],
@@ -44,7 +47,8 @@ const poiIcons = {
     className: 'poi-icon water-icon',
   }),
   fuel: L.icon({
-    iconUrl: 'https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.7.1/images/marker-icon.png',
+    iconUrl: './node_modules/leaflet/dist/images/marker-icon.png',
+    shadowUrl: './node_modules/leaflet/dist/images/marker-shadow.png',
     iconSize: [25, 41],
     iconAnchor: [12, 41],
     popupAnchor: [1, -34],
@@ -52,7 +56,8 @@ const poiIcons = {
     className: 'poi-icon fuel-icon',
   }),
   lpg: L.icon({
-    iconUrl: 'https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.7.1/images/marker-icon.png',
+    iconUrl: './node_modules/leaflet/dist/images/marker-icon.png',
+    shadowUrl: './node_modules/leaflet/dist/images/marker-shadow.png',
     iconSize: [25, 41],
     iconAnchor: [12, 41],
     popupAnchor: [1, -34],
@@ -60,7 +65,8 @@ const poiIcons = {
     className: 'poi-icon lpg-icon',
   }),
   viewpoint: L.icon({
-    iconUrl: 'https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.7.1/images/marker-icon.png',
+    iconUrl: './node_modules/leaflet/dist/images/marker-icon.png',
+    shadowUrl: './node_modules/leaflet/dist/images/marker-shadow.png',
     iconSize: [25, 41],
     iconAnchor: [12, 41],
     popupAnchor: [1, -34],
@@ -70,7 +76,15 @@ const poiIcons = {
 };
 
 // Inicialización principal de la aplicación
-document.addEventListener('DOMContentLoaded', function () {
+document.addEventListener('DOMContentLoaded', async function () {
+  // Cargar configuración (API keys, etc.) desde el proceso principal
+  try {
+    const config = await window.electron.ipcRenderer.invoke('get-config');
+    OPENROUTE_API_KEY = config.openRouteServiceApiKey || '';
+  } catch (error) {
+    console.error('No se pudo cargar la configuración:', error);
+  }
+
   // Inicializar el mapa
   initMap();
 
@@ -103,7 +117,7 @@ document.addEventListener('DOMContentLoaded', function () {
 // Variables para las capas del mapa
 let baseMaps = {};
 let currentBaseLayer;
-let layerControl;
+let _layerControl;
 
 // Función para inicializar el mapa con Leaflet
 function initMap() {
@@ -138,7 +152,7 @@ function initMap() {
   updateMapLayer(routeType);
 
   // Añadir control de capas
-  layerControl = L.control.layers(baseMaps).addTo(map);
+  _layerControl = L.control.layers(baseMaps).addTo(map);
 
   // Inicializar la línea de la ruta
   routePolyline = L.polyline([], {
@@ -223,7 +237,7 @@ function addWaypoint(lat, lng, elevation = 0) {
   updateWaypointsList();
 
   // Eventos para el marcador
-  marker.on('dragend', function (e) {
+  marker.on('dragend', function () {
     // Actualizar las coordenadas cuando el marcador se mueve
     const position = marker.getLatLng();
     const index = markers.indexOf(marker);
@@ -267,7 +281,7 @@ function addPOI(lat, lng, type) {
   updatePOIsList();
 
   // Eventos para el marcador
-  marker.on('dragend', function (e) {
+  marker.on('dragend', function () {
     // Actualizar las coordenadas cuando el marcador se mueve
     const position = marker.getLatLng();
     const index = poiMarkers.indexOf(marker);
@@ -968,7 +982,7 @@ function processRoutingResponse(data) {
   const route = data.features[0];
 
   // Añadir la ruta al mapa
-  const routeLayer = L.geoJSON(route, {
+  L.geoJSON(route, {
     style: {
       color: '#3388ff',
       weight: 6,
@@ -1052,21 +1066,18 @@ class ElectronOfflineTileLayer extends L.TileLayer {
   createTile(coords, done) {
     const tile = document.createElement('img');
 
-    // Evento para cuando la carga falla
-    L.DomEvent.on(tile, 'error', () => {
-      this._checkStoredTile(tile, coords, done);
-    });
-
     if (isOfflineMode) {
-      // En modo offline, intentar primero desde el almacenamiento
+      // En modo offline, cargar directamente desde el almacenamiento local
       this._checkStoredTile(tile, coords, done);
     } else {
-      // En modo online, cargar normalmente
+      // En modo online, cargar normalmente y caer en caché si falla
       const url = this.getTileUrl(coords);
       tile.src = url;
 
       L.DomEvent.on(tile, 'load', L.Util.bind(this._tileOnLoad, this, done, tile));
-      L.DomEvent.on(tile, 'error', L.Util.bind(this._tileOnError, this, done, tile));
+      L.DomEvent.on(tile, 'error', () => {
+        this._checkStoredTile(tile, coords, done);
+      });
     }
 
     return tile;
@@ -1091,15 +1102,12 @@ class ElectronOfflineTileLayer extends L.TileLayer {
           'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAQAAAAEACAYAAABccqhmAAAACXBIWXMAAAsTAAALEwEAmpwYAAABFUlEQVR4nO3BMQEAAADCoPVP7WsIoAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAB4MGkBAAFG4cY7AAAAAElFTkSuQmCC';
         done(null, tile);
       } else {
-        // En modo online, intentar cargarlo normalmente
-        const url = this.getTileUrl(coords);
-        tile.src = url;
+        // Online pero no en caché: la tesela no está disponible, marcar como error
+        done(new Error('Tesela no disponible en caché'), tile);
       }
     } catch (error) {
       console.error('Error accediendo al almacenamiento:', error);
-      // Intentar cargar normalmente
-      const url = this.getTileUrl(coords);
-      tile.src = url;
+      done(error, tile);
     }
   }
 
@@ -1224,12 +1232,7 @@ class ElectronOfflineTileLayer extends L.TileLayer {
       // Añadir todas las teselas en el área
       for (let x = minX; x <= maxX; x++) {
         for (let y = minY; y <= maxY; y++) {
-          const tilePoint = new L.Point(x, y);
-          tiles.push({
-            z: z,
-            x: x,
-            y: y,
-          });
+          tiles.push({ z: z, x: x, y: y });
         }
       }
     }
@@ -1280,7 +1283,7 @@ function setupOfflineSupport() {
   });
 
   // Eventos para la descarga de teselas
-  tileLayerOffline.on('offline:save-start', function (e) {
+  tileLayerOffline.on('offline:save-start', function () {
     document.querySelector('.progress-container').style.display = 'block';
     document.getElementById('offline-progress').value = 0;
     document.getElementById('offline-status').textContent = 'Iniciando descarga...';
@@ -1292,7 +1295,7 @@ function setupOfflineSupport() {
     document.getElementById('offline-status').textContent = `${e.downloaded} de ${e.total} teselas (${progress}%)`;
   });
 
-  tileLayerOffline.on('offline:save-end', function (e) {
+  tileLayerOffline.on('offline:save-end', function () {
     document.getElementById('offline-status').textContent = '¡Guardado completo!';
     setTimeout(function () {
       document.querySelector('.progress-container').style.display = 'none';
