@@ -17,23 +17,19 @@
   "author": "Carlos Mur",
   "license": "MIT",
   "dependencies": {
-    "fast-xml-parser": "^4.5.6",
-    "leaflet": "^1.9.4",
-    "localforage": "^1.10.0",
-    "node-fetch": "^2.7.0"
+    "electron-store": "^8.1.0",
+    "fast-xml-parser": "^5.5.7",
+    "leaflet": "^1.7.1",
+    "node-fetch": "^2.6.7"
   },
   "devDependencies": {
-    "@eslint/js": "^9.39.4",
-    "electron": "^33.0.0",
+    "electron": "^40.6.1",
     "electron-builder": "^26.8.1",
-    "eslint": "^9.39.4",
-    "eslint-config-prettier": "^10.1.8",
-    "eslint-plugin-prettier": "^5.5.5",
-    "globals": "^17.6.0",
-    "prettier": "^3.8.3"
-  },
-  "pnpm": {
-    "allowedBuildScripts": ["electron", "electron-winstaller"]
+    "eslint": "^9.22.0",
+    "eslint-config-prettier": "^10.1.1",
+    "eslint-plugin-jsdoc": "^50.6.8",
+    "eslint-plugin-prettier": "^5.2.3",
+    "prettier": "^3.5.3"
   },
   "build": {
     "appId": "com.cmurestudillos.routecreator",
