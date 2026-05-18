@@ -4,6 +4,18 @@ const fs = require('fs');
 const { XMLBuilder } = require('fast-xml-parser');
 const fetch = require('node-fetch');
 
+// Cargar configuración desde config.json (gitignored) con fallback a config.example.json
+let appConfig = {};
+try {
+  appConfig = JSON.parse(fs.readFileSync(path.join(__dirname, 'config.json'), 'utf8'));
+} catch {
+  try {
+    appConfig = JSON.parse(fs.readFileSync(path.join(__dirname, 'config.example.json'), 'utf8'));
+  } catch {
+    appConfig = { openRouteServiceApiKey: '' };
+  }
+}
+
 // Variable para almacenar la ventana principal
 let mainWindow;
 
@@ -41,6 +53,11 @@ app.on('window-all-closed', function () {
   if (process.platform !== 'darwin') app.quit();
 });
 
+// Exponer configuración al renderer de forma segura (solo campos permitidos)
+ipcMain.handle('get-config', () => ({
+  openRouteServiceApiKey: appConfig.openRouteServiceApiKey || '',
+}));
+
 // Manejo de eventos IPC para guardar rutas en formato GPX
 ipcMain.handle('save-gpx', async (event, routeData) => {
   try {
@@ -66,7 +83,7 @@ ipcMain.handle('save-gpx', async (event, routeData) => {
 });
 
 // Manejo de eventos IPC para importar rutas en formato GPX
-ipcMain.handle('import-gpx', async event => {
+ipcMain.handle('import-gpx', async () => {
   try {
     const { filePaths } = await dialog.showOpenDialog({
       title: 'Importar archivo GPX',

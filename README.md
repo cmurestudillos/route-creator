@@ -41,8 +41,12 @@ RouteCreator es una aplicación de escritorio para crear, editar y gestionar rut
 
 ### Requisitos previos
 
-- [Node.js](https://nodejs.org/)
-- npm (incluido con Node.js)
+- [Node.js](https://nodejs.org/) v18 o superior
+- [pnpm](https://pnpm.io/) v9 o superior
+
+```bash
+npm install -g pnpm
+```
 
 ### Pasos de instalación
 
@@ -54,22 +58,41 @@ cd route-creator
 
 2. Instala las dependencias:
 ```bash
-npm install
+pnpm install
 ```
 
 3. Inicia la aplicación:
 ```bash
-npm start
+pnpm start
 ```
 
 ### Generación de ejecutables para distribución
 
-Para crear ejecutables para tu sistema operativo:
 ```bash
-npm run build
+# Windows
+pnpm package:win
+
+# macOS
+pnpm package:mac
+
+# Linux
+pnpm package:linux
 ```
 
-Esto generará archivos ejecutables en la carpeta `dist`.
+Los ejecutables se generarán en la carpeta `release/`.
+
+## 🛠️ Scripts disponibles
+
+| Script | Descripción |
+|--------|-------------|
+| `pnpm start` | Inicia la aplicación en modo desarrollo |
+| `pnpm lint` | Verifica el código con ESLint |
+| `pnpm lint:fix` | Corrige automáticamente los errores de ESLint |
+| `pnpm format` | Formatea el código con Prettier |
+| `pnpm format:check` | Verifica el formato sin modificar archivos |
+| `pnpm package:win` | Genera ejecutable para Windows |
+| `pnpm package:mac` | Genera ejecutable para macOS |
+| `pnpm package:linux` | Genera ejecutable para Linux |
 
 ## 🛠️ Uso
 
@@ -89,7 +112,7 @@ Esto generará archivos ejecutables en la carpeta `dist`.
 ### Cálculo automático de rutas
 
 1. Añade al menos un punto de inicio y un punto de destino
-2. Selecciona el perfil de ruta adecuado 
+2. Selecciona el perfil de ruta adecuado
 3. Haz clic en "Calcular ruta automática"
 4. La aplicación calculará y mostrará la mejor ruta entre tus puntos
 
@@ -109,15 +132,34 @@ Esto generará archivos ejecutables en la carpeta `dist`.
 
 ## 🧩 Tecnologías utilizadas
 
-- [Electron](https://www.electronjs.org/) - Framework para crear aplicaciones de escritorio con tecnologías web
-- [Leaflet](https://leafletjs.com/) - Biblioteca JavaScript para mapas interactivos
-- [OpenStreetMap](https://www.openstreetmap.org/) - Datos de mapas
-- [OpenRouteService](https://openrouteservice.org/) - API para el cálculo automático de rutas
-- [localForage](https://localforage.github.io/localForage/) - Biblioteca para almacenamiento offline
+- [Electron](https://www.electronjs.org/) v33 — Framework para crear aplicaciones de escritorio con tecnologías web
+- [Leaflet](https://leafletjs.com/) v1.7.1 — Biblioteca JavaScript para mapas interactivos
+- [OpenStreetMap](https://www.openstreetmap.org/) — Datos de mapas
+- [OpenRouteService](https://openrouteservice.org/) — API para el cálculo automático de rutas
+- [localForage](https://localforage.github.io/localForage/) — Biblioteca para almacenamiento offline
+- [fast-xml-parser](https://github.com/NaturalIntelligence/fast-xml-parser) — Generación de archivos GPX (XML)
+- [node-fetch](https://github.com/node-fetch/node-fetch) — Peticiones HTTP en el proceso principal
+
+## 🔧 Calidad de código
+
+El proyecto usa **ESLint v9** (flat config) + **Prettier** para garantizar calidad y consistencia:
+
+```bash
+# Verificar linting
+pnpm lint
+
+# Auto-corregir
+pnpm lint:fix
+
+# Verificar formato
+pnpm format:check
+```
+
+La configuración de ESLint está en `eslint.config.mjs` y aplica reglas diferenciadas para el proceso principal (Node.js) y el renderer (browser).
 
 ## 📄 Licencia
 
-Este proyecto está licenciado bajo la Licencia MIT - ver el archivo [LICENSE](LICENSE) para más detalles.
+Este proyecto está licenciado bajo la Licencia MIT.
 
 ## 🤝 Contribuir
 
@@ -131,11 +173,10 @@ Las contribuciones son bienvenidas. Por favor, abre un issue o envía un pull re
 
 ## 📊 Roadmap
 
-Características planeadas para futuras versiones:
-
 - [ ] Perfil de elevación para rutas
 - [ ] Estimación de tiempo/esfuerzo
 - [ ] Sincronización con servicios en la nube
 - [ ] Exportación a otros formatos además de GPX
 - [ ] Aplicación móvil complementaria
 - [ ] Integración con Strava y otras plataformas
+- [ ] Mover Leaflet y localforage de CDN a dependencias locales (mejor soporte offline)

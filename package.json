@@ -1,10 +1,15 @@
 {
   "name": "route-creator",
-  "version": "1.0.0",
+  "version": "1.1.0",
   "description": "Aplicación para crear rutas de MTB, ciclismo en ruta y autocaravanas y exportarlas como GPX",
   "main": "main.js",
+  "packageManager": "pnpm@11.1.2",
   "scripts": {
     "start": "electron .",
+    "lint": "eslint .",
+    "lint:fix": "eslint . --fix",
+    "format": "prettier --write .",
+    "format:check": "prettier --check .",
     "package:mac": "electron-builder build --mac",
     "package:win": "electron-builder build --windows",
     "package:linux": "electron-builder build --linux"
@@ -12,19 +17,23 @@
   "author": "Carlos Mur",
   "license": "MIT",
   "dependencies": {
-    "electron-store": "^8.1.0",
-    "fast-xml-parser": "^4.2.2",
-    "leaflet": "^1.7.1",
-    "node-fetch": "^2.6.7"
+    "fast-xml-parser": "^4.5.6",
+    "leaflet": "^1.9.4",
+    "localforage": "^1.10.0",
+    "node-fetch": "^2.7.0"
   },
   "devDependencies": {
-    "electron": "^22.0.0",
-    "electron-builder": "^24.4.0",
-    "eslint": "^9.22.0",
-    "eslint-config-prettier": "^10.1.1",
-    "eslint-plugin-jsdoc": "^50.6.8",
-    "eslint-plugin-prettier": "^5.2.3",
-    "prettier": "^3.5.3"
+    "@eslint/js": "^9.39.4",
+    "electron": "^33.0.0",
+    "electron-builder": "^26.8.1",
+    "eslint": "^9.39.4",
+    "eslint-config-prettier": "^10.1.8",
+    "eslint-plugin-prettier": "^5.5.5",
+    "globals": "^17.6.0",
+    "prettier": "^3.8.3"
+  },
+  "pnpm": {
+    "allowedBuildScripts": ["electron", "electron-winstaller"]
   },
   "build": {
     "appId": "com.cmurestudillos.routecreator",
