@@ -4,6 +4,9 @@ settings:
   autoInstallPeers: true
   excludeLinksFromLockfile: false
 
+overrides:
+  tmp: ^0.2.6
+
 importers:
 
   .:
@@ -25,8 +28,8 @@ importers:
         specifier: ^9.39.4
         version: 9.39.4
       electron:
-        specifier: ^35.7.5
-        version: 35.7.5
+        specifier: ^38.8.6
+        version: 38.8.6
       electron-builder:
         specifier: ^26.8.1
         version: 26.8.1(electron-builder-squirrel-windows@26.8.1)
@@ -503,8 +506,8 @@ packages:
     resolution: {integrity: sha512-bO3y10YikuUwUuDUQRM4KfwNkKhnpVO7IPdbsrejwN9/AABJzzTQ4GeHwyzNSrVO+tEH3/Np255a3sVZpZDjvg==}
     engines: {node: '>=8.0.0'}
 
-  electron@35.7.5:
-    resolution: {integrity: sha512-dnL+JvLraKZl7iusXTVTGYs10TKfzUi30uEDTqsmTm0guN9V2tbOjTzyIZbh9n3ygUjgEYyo+igAwMRXIi3IPw==}
+  electron@38.8.6:
+    resolution: {integrity: sha512-lyBhcVi9QYAZL6FO6r5twAWAjWnYomo3iVDvrb5SJZlq928BGemHOKG0tPIq41NOLaCu9f3XdEEjMkjQPjprRg==}
     engines: {node: '>= 12.20.55'}
     hasBin: true
 
@@ -1290,8 +1293,8 @@ packages:
   tmp-promise@3.0.3:
     resolution: {integrity: sha512-RwM7MoPojPxsOBYnyd2hy0bxtIlVrihNs9pj5SUvY8Zz1sQcQG2tG1hSr8PDxfgEB8RNKDhqbIlroIarSNDNsQ==}
 
-  tmp@0.2.5:
-    resolution: {integrity: sha512-voyz6MApa1rQGUxT3E+BK7/ROe8itEx7vD8/HEvt4xwXucvQ5G5oeEiHkmHZJuBO21RpOf+YYm9MOivj709jow==}
+  tmp@0.2.7:
+    resolution: {integrity: sha512-e0votIpp4Uo2AJYSzVHV6xCcawuiez3DzqDAbrTc3YxBkplN6e+dM13ZeIcZnDg/QpSuU2zfZ3rzwY8ukEnaXw==}
     engines: {node: '>=14.14'}
 
   tr46@0.0.3:
@@ -2010,7 +2013,7 @@ snapshots:
     transitivePeerDependencies:
       - supports-color
 
-  electron@35.7.5:
+  electron@38.8.6:
     dependencies:
       '@electron/get': 2.0.3
       '@types/node': 22.19.19
@@ -2804,9 +2807,9 @@ snapshots:
 
   tmp-promise@3.0.3:
     dependencies:
-      tmp: 0.2.5
+      tmp: 0.2.7
 
-  tmp@0.2.5: {}
+  tmp@0.2.7: {}
 
   tr46@0.0.3: {}
 
