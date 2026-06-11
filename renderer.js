@@ -236,6 +236,21 @@ function addWaypoint(lat, lng, elevation = 0) {
   // Actualizar la lista de waypoints en la interfaz
   updateWaypointsList();
 
+  // Popup con información del punto y botón para eliminarlo
+  marker.bindPopup(() => createWaypointPopupContent(marker));
+
+  // Evitar que el clic en el marcador se propague al mapa y cree un punto nuevo
+  marker.on('click', function (e) {
+    L.DomEvent.stopPropagation(e);
+  });
+
+  // Clic derecho elimina el punto directamente
+  marker.on('contextmenu', function (e) {
+    L.DomEvent.preventDefault(e);
+    L.DomEvent.stopPropagation(e);
+    removeWaypointByMarker(marker);
+  });
+
   // Eventos para el marcador
   marker.on('dragend', function () {
     // Actualizar las coordenadas cuando el marcador se mueve
@@ -246,8 +261,41 @@ function addWaypoint(lat, lng, elevation = 0) {
       waypoints[index].lat = position.lat;
       waypoints[index].lng = position.lng;
       updateRoutePolyline();
+
+      // Refrescar el popup si está abierto para mostrar la nueva posición
+      if (marker.isPopupOpen()) {
+        marker.setPopupContent(createWaypointPopupContent(marker));
+      }
     }
   });
+}
+
+// Crea el contenido del popup de un punto del track, con botón para eliminarlo
+function createWaypointPopupContent(marker) {
+  const index = markers.indexOf(marker);
+  const wp = waypoints[index];
+
+  const container = document.createElement('div');
+  container.innerHTML = `
+    <strong>Punto ${index + 1}</strong><br>
+    Lat: ${wp.lat.toFixed(5)}, Lng: ${wp.lng.toFixed(5)}<br>
+    <button type="button" class="delete-point-btn">Eliminar punto</button>
+  `;
+
+  container.querySelector('.delete-point-btn').addEventListener('click', () => {
+    marker.closePopup();
+    removeWaypointByMarker(marker);
+  });
+
+  return container;
+}
+
+// Elimina un waypoint a partir de su marcador en el mapa
+function removeWaypointByMarker(marker) {
+  const index = markers.indexOf(marker);
+  if (index !== -1) {
+    removeWaypoint(index);
+  }
 }
 
 // Función para añadir un punto de interés (POI)
@@ -280,6 +328,21 @@ function addPOI(lat, lng, type) {
   // Actualizar la lista de POIs en la interfaz
   updatePOIsList();
 
+  // Popup con información del POI y botón para eliminarlo
+  marker.bindPopup(() => createPOIPopupContent(marker));
+
+  // Evitar que el clic en el marcador se propague al mapa y cree un punto nuevo
+  marker.on('click', function (e) {
+    L.DomEvent.stopPropagation(e);
+  });
+
+  // Clic derecho elimina el POI directamente
+  marker.on('contextmenu', function (e) {
+    L.DomEvent.preventDefault(e);
+    L.DomEvent.stopPropagation(e);
+    removePOIByMarker(marker);
+  });
+
   // Eventos para el marcador
   marker.on('dragend', function () {
     // Actualizar las coordenadas cuando el marcador se mueve
@@ -290,11 +353,41 @@ function addPOI(lat, lng, type) {
       pois[index].lat = position.lat;
       pois[index].lng = position.lng;
       updatePOIsList();
+
+      // Refrescar el popup si está abierto para mostrar la nueva posición
+      if (marker.isPopupOpen()) {
+        marker.setPopupContent(createPOIPopupContent(marker));
+      }
     }
   });
+}
 
-  // Mostrar popup con información del POI
-  marker.bindPopup(`<strong>${getPoiDescription(type)}</strong><br>Lat: ${lat.toFixed(5)}, Lng: ${lng.toFixed(5)}`);
+// Crea el contenido del popup de un POI, con botón para eliminarlo
+function createPOIPopupContent(marker) {
+  const index = poiMarkers.indexOf(marker);
+  const poi = pois[index];
+
+  const container = document.createElement('div');
+  container.innerHTML = `
+    <strong>${poi.description}</strong><br>
+    Lat: ${poi.lat.toFixed(5)}, Lng: ${poi.lng.toFixed(5)}<br>
+    <button type="button" class="delete-point-btn">Eliminar punto</button>
+  `;
+
+  container.querySelector('.delete-point-btn').addEventListener('click', () => {
+    marker.closePopup();
+    removePOIByMarker(marker);
+  });
+
+  return container;
+}
+
+// Elimina un POI a partir de su marcador en el mapa
+function removePOIByMarker(marker) {
+  const index = poiMarkers.indexOf(marker);
+  if (index !== -1) {
+    removePOI(index);
+  }
 }
 
 // Obtener descripción para un tipo de POI
