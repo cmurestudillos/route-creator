@@ -12,6 +12,8 @@ RouteCreator es una aplicación de escritorio para crear, editar y gestionar rut
 - 📍 **Gestión avanzada de rutas**:
   - Añade puntos manualmente haciendo clic en el mapa
   - Arrastra y ajusta puntos de forma interactiva
+  - Edita o elimina puntos del track (incluidos los importados de un GPX) directamente desde el mapa: clic en un
+    punto para ver sus coordenadas y eliminarlo, o clic derecho para eliminarlo al instante
   - Cálculo automático de distancias
 
 - 🚏 **Puntos de interés (POIs)** especialmente útiles para rutas en autocaravana:
@@ -103,6 +105,12 @@ Los ejecutables se generarán en la carpeta `release/`.
 3. Haz clic en el mapa para añadir puntos a tu ruta
 4. Ajusta los puntos arrastrándolos si es necesario
 
+### Editar o eliminar puntos del track y POIs en el mapa
+
+1. Haz clic sobre el marcador de un punto para abrir un popup con sus coordenadas y un botón "Eliminar punto"
+2. Para mover un punto, arrástralo a su nueva posición (el popup se actualiza automáticamente)
+3. Para eliminar un punto rápidamente sin abrir el popup, haz clic derecho sobre su marcador
+
 ### Añadir puntos de interés (para rutas de autocaravana)
 
 1. Selecciona el modo "Puntos de interés"
@@ -132,7 +140,7 @@ Los ejecutables se generarán en la carpeta `release/`.
 
 ## 🧩 Tecnologías utilizadas
 
-- [Electron](https://www.electronjs.org/) v33 — Framework para crear aplicaciones de escritorio con tecnologías web
+- [Electron](https://www.electronjs.org/) v39 — Framework para crear aplicaciones de escritorio con tecnologías web
 - [Leaflet](https://leafletjs.com/) v1.7.1 — Biblioteca JavaScript para mapas interactivos
 - [OpenStreetMap](https://www.openstreetmap.org/) — Datos de mapas
 - [OpenRouteService](https://openrouteservice.org/) — API para el cálculo automático de rutas
