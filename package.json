@@ -23,7 +23,7 @@
     "node-fetch": "^2.7.0"
   },
   "devDependencies": {
-    "@eslint/js": "^9.39.4",
+    "@eslint/js": "^9.39.5",
     "electron": "^43.7.7",
     "electron-builder": "^26.8.1",
     "eslint": "^9.39.4",
