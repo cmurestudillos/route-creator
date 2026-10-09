@@ -74,7 +74,8 @@
         display: flex;
         justify-content: space-between;
       }
-      .waypoint-item button {
+      .waypoint-item button,
+      .poi-item button {
         width: auto;
         background-color: #f44336;
         margin: 0;
@@ -219,6 +220,43 @@
 
       .delete-point-btn:hover {
         background-color: #d32f2f;
+      }
+
+      .route-point {
+        box-sizing: border-box;
+        border-radius: 50%;
+        border: 3px solid #1e6fd9;
+        background-color: white;
+        box-shadow: 0 1px 3px rgba(0, 0, 0, 0.45);
+      }
+
+      .route-point-start {
+        border-color: #2e7d32;
+        background-color: #a5d6a7;
+      }
+
+      .route-point-end {
+        border-color: #c62828;
+        background-color: #ef9a9a;
+      }
+
+      .poi-icon {
+        background: none;
+        border: none;
+      }
+
+      .poi-marker {
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        width: 30px;
+        height: 30px;
+        box-sizing: border-box;
+        border-radius: 50%;
+        border: 3px solid var(--poi-color);
+        background-color: white;
+        font-size: 14px;
+        box-shadow: 0 1px 4px rgba(0, 0, 0, 0.4);
       }
 
       .app-version {

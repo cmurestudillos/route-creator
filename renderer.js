@@ -19,63 +19,29 @@ let apiKeySource = null; // Origen de la API key de OpenRouteService: 'settings'
 let isOfflineMode = false;
 let tileLayerOffline;
 
-// Iconos personalizados para POIs
-const poiIcons = {
-  parking: L.icon({
-    iconUrl: './node_modules/leaflet/dist/images/marker-icon.png',
-    shadowUrl: './node_modules/leaflet/dist/images/marker-shadow.png',
-    iconSize: [25, 41],
-    iconAnchor: [12, 41],
-    popupAnchor: [1, -34],
-    shadowSize: [41, 41],
-    className: 'poi-icon parking-icon',
-  }),
-  service: L.icon({
-    iconUrl: './node_modules/leaflet/dist/images/marker-icon.png',
-    shadowUrl: './node_modules/leaflet/dist/images/marker-shadow.png',
-    iconSize: [25, 41],
-    iconAnchor: [12, 41],
-    popupAnchor: [1, -34],
-    shadowSize: [41, 41],
-    className: 'poi-icon service-icon',
-  }),
-  water: L.icon({
-    iconUrl: './node_modules/leaflet/dist/images/marker-icon.png',
-    shadowUrl: './node_modules/leaflet/dist/images/marker-shadow.png',
-    iconSize: [25, 41],
-    iconAnchor: [12, 41],
-    popupAnchor: [1, -34],
-    shadowSize: [41, 41],
-    className: 'poi-icon water-icon',
-  }),
-  fuel: L.icon({
-    iconUrl: './node_modules/leaflet/dist/images/marker-icon.png',
-    shadowUrl: './node_modules/leaflet/dist/images/marker-shadow.png',
-    iconSize: [25, 41],
-    iconAnchor: [12, 41],
-    popupAnchor: [1, -34],
-    shadowSize: [41, 41],
-    className: 'poi-icon fuel-icon',
-  }),
-  lpg: L.icon({
-    iconUrl: './node_modules/leaflet/dist/images/marker-icon.png',
-    shadowUrl: './node_modules/leaflet/dist/images/marker-shadow.png',
-    iconSize: [25, 41],
-    iconAnchor: [12, 41],
-    popupAnchor: [1, -34],
-    shadowSize: [41, 41],
-    className: 'poi-icon lpg-icon',
-  }),
-  viewpoint: L.icon({
-    iconUrl: './node_modules/leaflet/dist/images/marker-icon.png',
-    shadowUrl: './node_modules/leaflet/dist/images/marker-shadow.png',
-    iconSize: [25, 41],
-    iconAnchor: [12, 41],
-    popupAnchor: [1, -34],
-    shadowSize: [41, 41],
-    className: 'poi-icon viewpoint-icon',
-  }),
+// Iconos de los POIs: círculo con el color de cada tipo (el mismo que en la lista lateral) y un emoji,
+// para distinguirlos de los puntos de la ruta
+const POI_STYLES = {
+  parking: { color: '#3f51b5', emoji: '🅿️' },
+  service: { color: '#e91e63', emoji: '🚐' },
+  water: { color: '#2196f3', emoji: '💧' },
+  fuel: { color: '#ff5722', emoji: '⛽' },
+  lpg: { color: '#9c27b0', emoji: '🔥' },
+  viewpoint: { color: '#4caf50', emoji: '🔭' },
 };
+
+const poiIcons = Object.fromEntries(
+  Object.entries(POI_STYLES).map(([type, { color, emoji }]) => [
+    type,
+    L.divIcon({
+      className: `poi-icon ${type}-icon`,
+      html: `<span class="poi-marker" style="--poi-color: ${color}">${emoji}</span>`,
+      iconSize: [30, 30],
+      iconAnchor: [15, 15],
+      popupAnchor: [0, -15],
+    }),
+  ])
+);
 
 // Inicialización principal de la aplicación
 document.addEventListener('DOMContentLoaded', async function () {
@@ -227,6 +193,7 @@ function addWaypoint(lat, lng, elevation = null, { deferUpdate = false } = {}) {
   // Crear un marcador en el mapa
   const marker = L.marker([lat, lng], {
     draggable: true, // Permite arrastrar el marcador
+    icon: routePointIcons.middle, // updateRoutePolyline marca el inicio y el final
   }).addTo(map);
 
   // Crear un objeto waypoint
@@ -430,12 +397,39 @@ function getPoiDescription(type) {
 function updateRoutePolyline() {
   const points = waypoints.map(wp => [wp.lat, wp.lng]);
   routePolyline.setLatLngs(points);
+  updateRoutePointIcons();
 
   // Los puntos han cambiado: la ruta calculada ya no corresponde a ellos
   discardRoutedTrack();
 
   // Actualizar estadísticas de la ruta
   updateRouteStats();
+}
+
+// Iconos de los puntos de la ruta: puntos pequeños (un track importado puede tener miles) y el inicio y el
+// final destacados en verde y rojo
+const routePointIcons = Object.fromEntries(
+  ['start', 'middle', 'end'].map(role => [
+    role,
+    L.divIcon({
+      className: `route-point route-point-${role}`,
+      iconSize: [14, 14],
+      iconAnchor: [7, 7],
+      popupAnchor: [0, -7],
+    }),
+  ])
+);
+
+// Asignar a cada marcador el icono de su posición (solo cambia los que lo necesitan)
+function updateRoutePointIcons() {
+  markers.forEach((marker, index) => {
+    const role = index === 0 ? 'start' : index === markers.length - 1 ? 'end' : 'middle';
+    if (marker.options.icon !== routePointIcons[role]) {
+      marker.setIcon(routePointIcons[role]);
+      // Inicio y final por encima del resto de puntos
+      marker.setZIndexOffset(role === 'middle' ? 0 : 1000);
+    }
+  });
 }
 
 // Función para actualizar las estadísticas de la ruta
