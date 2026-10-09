@@ -8,6 +8,7 @@ let waypoints = [];
 let currentMode = 'route'; // 'route' o 'poi'
 let poiMarkers = [];
 let pois = [];
+let pendingPoiReturnMode = null; // Modo al que volver tras colocar un POI con el botón "Añadir POI"
 
 // Variables para el enrutamiento
 let routingLayer; // Capa para mostrar la ruta calculada
@@ -207,6 +208,13 @@ function onMapClick(e) {
     // Obtener el tipo de POI seleccionado
     const poiType = document.getElementById('poi-type').value;
     addPOI(e.latlng.lat, e.latlng.lng, poiType);
+
+    // POI colocado con el botón "Añadir POI": volver al modo en el que estaba
+    if (pendingPoiReturnMode !== null) {
+      const returnMode = pendingPoiReturnMode;
+      pendingPoiReturnMode = null;
+      setEditMode(returnMode);
+    }
   }
 }
 
@@ -582,27 +590,14 @@ function setupEventListeners() {
   const addPoiButton = document.getElementById('add-poi');
   if (addPoiButton) {
     addPoiButton.addEventListener('click', function () {
-      // Cambiar temporalmente al modo POI
-      const prevMode = currentMode;
+      // Cambiar temporalmente al modo POI: el siguiente clic en el mapa (onMapClick) coloca el POI
+      // y vuelve al modo anterior. Pulsar el botón varias veces no acumula clics pendientes.
+      const returnMode = pendingPoiReturnMode ?? currentMode;
       setEditMode('poi');
+      pendingPoiReturnMode = returnMode;
 
       // Solicitar al usuario que haga clic en el mapa
       alert('Ahora haz clic en el mapa para colocar el punto de interés');
-
-      // Configurar un listener único para este evento
-      const clickHandler = function (e) {
-        const poiType = document.getElementById('poi-type').value;
-        addPOI(e.latlng.lat, e.latlng.lng, poiType);
-
-        // Eliminar este listener después de usarlo una vez
-        map.off('click', clickHandler);
-
-        // Volver al modo anterior
-        setEditMode(prevMode);
-      };
-
-      // Añadir el listener
-      map.once('click', clickHandler);
     });
   }
 
@@ -628,6 +623,7 @@ function setupEventListeners() {
 // Función para cambiar el modo de edición
 function setEditMode(mode) {
   currentMode = mode;
+  pendingPoiReturnMode = null; // Un cambio de modo cancela el POI pendiente del botón "Añadir POI"
 
   // Actualizar clases de los botones
   const routeModeBtn = document.getElementById('route-mode');
