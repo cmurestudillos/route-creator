@@ -1,6 +1,6 @@
 {
   "name": "route-creator",
-  "version": "1.1.0",
+  "version": "1.2.0",
   "description": "Aplicación para crear rutas de MTB, ciclismo en ruta y autocaravanas y exportarlas como GPX",
   "main": "main.js",
   "packageManager": "pnpm@11.1.2",
@@ -46,19 +46,42 @@
     "files": [
       "**/*",
       "!docs{,/**/*}",
+      "!.vscode{,/**/*}",
       "!config.json",
-      "!config.example.json"
+      "!config.example.json",
+      "!README.md",
+      "!eslint.config.mjs",
+      "!pnpm-workspace.yaml",
+      "!.npmrc",
+      "!.prettierrc",
+      "!.prettierignore"
     ],
+    "publish": {
+      "provider": "github",
+      "owner": "cmurestudillos",
+      "repo": "route-creator",
+      "releaseType": "draft"
+    },
     "mac": {
-      "category": "public.app-category.developer-tools",
-      "icon": "assets/icon.icns"
+      "category": "public.app-category.navigation",
+      "icon": "assets/icon.icns",
+      "target": [
+        {
+          "target": "dmg",
+          "arch": [
+            "arm64"
+          ]
+        }
+      ]
     },
     "win": {
-      "icon": "assets/icon.ico"
+      "icon": "assets/icon.ico",
+      "target": "nsis"
     },
     "linux": {
       "icon": "assets/icon.png",
-      "category": "Development"
+      "category": "Utility",
+      "target": "AppImage"
     }
   }
 }
