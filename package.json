@@ -19,8 +19,7 @@
   "dependencies": {
     "fast-xml-parser": "^5.7.0",
     "leaflet": "^1.9.4",
-    "localforage": "^1.10.0",
-    "node-fetch": "^2.7.0"
+    "localforage": "^1.10.0"
   },
   "devDependencies": {
     "@eslint/js": "^9.39.4",

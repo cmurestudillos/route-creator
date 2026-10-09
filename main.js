@@ -2,7 +2,6 @@ const { app, BrowserWindow, ipcMain, dialog, shell } = require('electron');
 const path = require('path');
 const fs = require('fs');
 const { XMLBuilder } = require('fast-xml-parser');
-const fetch = require('node-fetch');
 
 // Cargar configuración desde config.json (gitignored) con fallback a config.example.json
 let appConfig = {};
@@ -15,6 +14,9 @@ try {
     appConfig = { openRouteServiceApiKey: '' };
   }
 }
+
+// User-Agent identificable: la política de uso de teselas de OpenStreetMap lo exige
+const USER_AGENT = `RouteCreator/${app.getVersion()} (+https://github.com/cmurestudillos/route-creator)`;
 
 // Variable para almacenar la ventana principal
 let mainWindow;
@@ -164,7 +166,9 @@ ipcMain.handle('fetch-route', async (event, requestData) => {
       headers: {
         Authorization: apiKey,
         'Content-Type': 'application/json',
+        'User-Agent': USER_AGENT,
       },
+      signal: AbortSignal.timeout(30000),
       body: JSON.stringify({
         coordinates: coordinates,
         profile: profile,
@@ -199,7 +203,10 @@ ipcMain.handle('download-tile', async (event, tileUrl) => {
       throw new Error('URL de tesela no permitida');
     }
 
-    const response = await fetch(tileUrl);
+    const response = await fetch(tileUrl, {
+      headers: { 'User-Agent': USER_AGENT },
+      signal: AbortSignal.timeout(20000),
+    });
 
     if (!response.ok) {
       throw new Error(`Error descargando tesela: ${response.status}`);
