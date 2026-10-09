@@ -1,100 +1,108 @@
-# RouteCreator
+# Route Creator
 
-RouteCreator es una aplicación de escritorio para crear, editar y gestionar rutas para MTB, ciclismo en ruta y autocaravanas. Permite diseñar tus propias rutas, añadir puntos de interés, calcular rutas automáticas y exportarlas en formato GPX compatible con dispositivos Garmin y otras aplicaciones de navegación.
+Route Creator es una aplicación de escritorio para crear, editar y gestionar rutas para MTB, ciclismo en ruta y
+autocaravanas. Permite diseñar tus propias rutas sobre el mapa, calcularlas por caminos y carreteras, añadir puntos de
+interés y exportarlas en formato GPX 1.1 para dispositivos GPS y aplicaciones de navegación.
+
+🌐 **Web y descargas:** https://cmurestudillos.github.io/route-creator/
+
+![Ruta de MTB calculada en Route Creator](docs/assets/screenshots/01-ruta-mtb.jpg)
 
 ## ✨ Características
 
-- 🗺️ **Diferentes capas de mapas** adaptadas a cada tipo de actividad:
-  - Terreno para MTB
-  - Carreteras para ciclismo en ruta
-  - Carreteras para autocaravanas
+- 🗺️ **Un mapa para cada actividad** (se puede cambiar desde el control de capas):
+  - Topográfico (Esri) para MTB
+  - OSM Humanitarian para ciclismo en ruta
+  - OpenStreetMap para autocaravana
 
-- 📍 **Gestión avanzada de rutas**:
-  - Añade puntos manualmente haciendo clic en el mapa
-  - Arrastra y ajusta puntos de forma interactiva
-  - Edita o elimina puntos del track (incluidos los importados de un GPX) directamente desde el mapa: clic en un
-    punto para ver sus coordenadas y eliminarlo, o clic derecho para eliminarlo al instante
-  - Cálculo automático de distancias
+- 📍 **Edición directa en el mapa**:
+  - Añade puntos haciendo clic en el mapa (inicio en verde, final en rojo)
+  - Arrastra los puntos para ajustarlos
+  - Clic en un punto para ver sus coordenadas y eliminarlo, o clic derecho para eliminarlo al instante
+  - Distancia total de la ruta
 
-- 🚏 **Puntos de interés (POIs)** especialmente útiles para rutas en autocaravana:
-  - Áreas de pernocta
-  - Áreas de servicio
-  - Puntos de agua
-  - Gasolineras
-  - Puntos de recarga de GLP
-  - Miradores
+- 🧭 **Enrutamiento automático** con [OpenRouteService](https://openrouteservice.org/):
+  - Perfiles: automóvil, vehículo pesado, ciclismo en ruta, MTB/BTT y a pie (senderismo)
+  - Hasta 50 puntos de paso
+  - El GPX exporta la geometría completa de la ruta calculada con la altitud de cada punto
+  - Requiere una API key gratuita (ver [Configuración](#-configuración))
 
-- 🧭 **Enrutamiento automático** entre puntos:
-  - Perfiles específicos para cada actividad
-  - Cálculo de la ruta óptima entre puntos seleccionados
-  - Basado en OpenRouteService API
+- 🚏 **Puntos de interés (POIs)** para rutas en autocaravana, cada uno con su color y su símbolo Garmin en el GPX:
+  - Áreas de pernocta, áreas de servicio, puntos de agua, gasolineras, puntos de recarga de GLP y miradores
 
-- 📱 **Soporte offline**:
-  - Descarga mapas para usarlos sin conexión
-  - Selecciona el área y nivel de zoom a guardar
-  - Ideal para zonas con mala cobertura
+- 💾 **Importación/Exportación GPX**:
+  - Exporta GPX 1.1 válido según el esquema oficial, con los metadatos del tipo de ruta
+  - Importa tracks (`<trk>`) o rutas (`<rte>`) GPX, también de miles de puntos, y sus waypoints como POIs
 
-- 💾 **Importación/Exportación**:
-  - Exporta tus rutas en formato GPX compatible con Garmin
-  - Importa rutas GPX existentes para editarlas
-  - Metadatos específicos según el tipo de actividad
+- 📶 **Mapas sin conexión**:
+  - Guarda el área visible del mapa entre los niveles de zoom que elijas
+  - Modo offline que muestra el mapa desde las teselas guardadas
+
+## 📸 Capturas
+
+| Ruta de MTB calculada                                         | Autocaravana con puntos de interés                                         |
+| ------------------------------------------------------------- | -------------------------------------------------------------------------- |
+| ![Ruta de MTB](docs/assets/screenshots/01-ruta-mtb.jpg)       | ![Autocaravana con POIs](docs/assets/screenshots/02-autocaravana-pois.jpg) |
+| **GPX importado (1210 puntos)**                               | **Mapas sin conexión**                                                     |
+| ![GPX importado](docs/assets/screenshots/03-importar-gpx.jpg) | ![Mapas offline](docs/assets/screenshots/04-mapas-offline.jpg)             |
 
 ## 🚀 Instalación
 
-### Requisitos previos
+Descarga el instalador de tu sistema desde la [web](https://cmurestudillos.github.io/route-creator/#/descargas) o desde
+[Releases](https://github.com/cmurestudillos/route-creator/releases): `.exe` (Windows), `.dmg` (macOS Apple Silicon) o
+`.AppImage` (Linux). Los instaladores no están firmados: en la web están las notas para SmartScreen, Gatekeeper y
+permisos de ejecución.
 
-- [Node.js](https://nodejs.org/) v18 o superior
-- [pnpm](https://pnpm.io/) v9 o superior
+### Desde el código
 
-```bash
-npm install -g pnpm
-```
+Requisitos: [Node.js](https://nodejs.org/) 22.12 o superior y [pnpm](https://pnpm.io/) 11 o superior.
 
-### Pasos de instalación
-
-1. Clona este repositorio:
 ```bash
 git clone https://github.com/cmurestudillos/route-creator.git
 cd route-creator
-```
-
-2. Instala las dependencias:
-```bash
 pnpm install
-```
-
-3. Inicia la aplicación:
-```bash
 pnpm start
 ```
 
-### Generación de ejecutables para distribución
+### Generación de ejecutables
 
 ```bash
-# Windows
-pnpm package:win
-
-# macOS
-pnpm package:mac
-
-# Linux
-pnpm package:linux
+pnpm package:win     # Windows (.exe)
+pnpm package:mac     # macOS (.dmg, requiere macOS)
+pnpm package:linux   # Linux (.AppImage)
 ```
 
-Los ejecutables se generarán en la carpeta `release/`.
+Los ejecutables se generan en `release/`.
+
+## 🔑 Configuración
+
+El cálculo automático de rutas necesita una API key gratuita de OpenRouteService:
+
+1. Crea una cuenta en [openrouteservice.org](https://openrouteservice.org/dev/#/signup) y copia tu API key.
+2. En la app, pégala en **API key de OpenRouteService** (sección _Enrutamiento automático_) y pulsa **Guardar API key**.
+   Se guarda en `settings.json` dentro de la carpeta de datos de la app; para borrarla, guarda el campo vacío.
+
+En desarrollo también puedes usar `config.json` (está en `.gitignore` y se excluye del instalador):
+
+```bash
+cp config.example.json config.json   # y pon tu clave en openRouteServiceApiKey
+```
+
+La clave guardada desde la app tiene prioridad sobre `config.json`. La clave nunca llega al renderer: el proceso
+principal la añade a la petición.
 
 ## 🛠️ Scripts disponibles
 
-| Script | Descripción |
-|--------|-------------|
-| `pnpm start` | Inicia la aplicación en modo desarrollo |
-| `pnpm lint` | Verifica el código con ESLint |
-| `pnpm lint:fix` | Corrige automáticamente los errores de ESLint |
-| `pnpm format` | Formatea el código con Prettier |
-| `pnpm format:check` | Verifica el formato sin modificar archivos |
-| `pnpm package:win` | Genera ejecutable para Windows |
-| `pnpm package:mac` | Genera ejecutable para macOS |
-| `pnpm package:linux` | Genera ejecutable para Linux |
+| Script               | Descripción                                   |
+| -------------------- | --------------------------------------------- |
+| `pnpm start`         | Inicia la aplicación en modo desarrollo       |
+| `pnpm lint`          | Verifica el código con ESLint                 |
+| `pnpm lint:fix`      | Corrige automáticamente los errores de ESLint |
+| `pnpm format`        | Formatea el código con Prettier               |
+| `pnpm format:check`  | Verifica el formato sin modificar archivos    |
+| `pnpm package:win`   | Genera ejecutable para Windows                |
+| `pnpm package:mac`   | Genera ejecutable para macOS                  |
+| `pnpm package:linux` | Genera ejecutable para Linux                  |
 
 ## 🛠️ Uso
 
@@ -113,57 +121,86 @@ Los ejecutables se generarán en la carpeta `release/`.
 
 ### Añadir puntos de interés (para rutas de autocaravana)
 
-1. Selecciona el modo "Puntos de interés"
-2. Elige el tipo de POI que quieres añadir
-3. Haz clic en "Añadir POI" y luego en el mapa para colocarlo
+1. Selecciona el modo "Puntos de interés" y elige el tipo de POI: cada clic en el mapa añade uno
+2. O pulsa "Añadir POI": el siguiente clic en el mapa coloca el punto y vuelves al modo anterior
 
 ### Cálculo automático de rutas
 
-1. Añade al menos un punto de inicio y un punto de destino
-2. Selecciona el perfil de ruta adecuado
-3. Haz clic en "Calcular ruta automática"
-4. La aplicación calculará y mostrará la mejor ruta entre tus puntos
+1. Guarda tu API key de OpenRouteService (ver [Configuración](#-configuración))
+2. Añade entre 2 y 50 puntos
+3. Selecciona el perfil de ruta adecuado (se elige solo según el tipo de ruta)
+4. Haz clic en "Calcular ruta automática"
+5. La ruta calculada se dibuja sobre tus puntos, que se mantienen como puntos de paso. Si mueves, añades o quitas un
+   punto, hay que volver a calcularla
 
 ### Guardar mapas para uso offline
 
 1. Navega al área que quieres guardar
-2. Ajusta los niveles de zoom a descargar
+2. Ajusta los niveles de zoom a descargar (la app avisa antes de descargas grandes)
 3. Haz clic en "Guardar área visible para uso offline"
-4. Espera a que se complete la descarga
-5. Activa el modo offline con el botón correspondiente cuando lo necesites
+4. Activa el modo offline con el botón correspondiente cuando lo necesites
 
 ### Exportar a GPX
 
 1. Una vez completada tu ruta, haz clic en "Exportar como GPX"
 2. Selecciona la ubicación donde guardar el archivo
-3. El archivo GPX generado incluirá todos los puntos de la ruta y POIs, y será compatible con dispositivos Garmin y otras aplicaciones de navegación
+3. El GPX incluye el track (la ruta calculada completa o tus puntos), los POIs como waypoints con símbolo Garmin y los
+   datos del tipo de ruta
 
 ## 🧩 Tecnologías utilizadas
 
-- [Electron](https://www.electronjs.org/) v39 — Framework para crear aplicaciones de escritorio con tecnologías web
-- [Leaflet](https://leafletjs.com/) v1.7.1 — Biblioteca JavaScript para mapas interactivos
+- [Electron](https://www.electronjs.org/) v43 — Framework para crear aplicaciones de escritorio con tecnologías web
+- [Leaflet](https://leafletjs.com/) v1.9 — Biblioteca JavaScript para mapas interactivos
 - [OpenStreetMap](https://www.openstreetmap.org/) — Datos de mapas
 - [OpenRouteService](https://openrouteservice.org/) — API para el cálculo automático de rutas
-- [localForage](https://localforage.github.io/localForage/) — Biblioteca para almacenamiento offline
+- [localForage](https://localforage.github.io/localForage/) — Almacenamiento de las teselas offline
 - [fast-xml-parser](https://github.com/NaturalIntelligence/fast-xml-parser) — Generación de archivos GPX (XML)
-- [node-fetch](https://github.com/node-fetch/node-fetch) — Peticiones HTTP en el proceso principal
+
+## 🌐 Web (GitHub Pages)
+
+La landing está en `docs/` (HTML, CSS y JS sin dependencias ni build) y se publica con GitHub Pages desde la rama
+`master`, carpeta `/docs`. Lee la última versión publicada de la API de releases de GitHub para rellenar los enlaces de
+descarga, así que no hay que tocarla al publicar una versión.
+
+### Regenerar las capturas
+
+Las capturas de `docs/assets/screenshots/` son reales: se generan con un script de Electron que **no está en el
+repositorio** y se carga sobre la app con `electron -r <script>.js .` desde la raíz del proyecto. El script:
+
+- sustituye `dialog.showOpenDialog` para importar un GPX de ejemplo y el estado de la API key (para que se vea
+  "guardada" en lugar de `config.json`),
+- maneja la interfaz con `webContents.executeJavaScript` (tipo de ruta, puntos, POIs, cálculo con OpenRouteService,
+  descarga offline),
+- espera a que carguen las teselas y llama a `webContents.invalidate()` antes de `capturePage()` (si no, captura el
+  fotograma anterior),
+- guarda JPEG de 1280×800 con calidad 85.
+
+## 📦 Publicar una versión
+
+Los instaladores de Windows, macOS y Linux los genera GitHub Actions (`.github/workflows/release.yml`) al subir un tag:
+
+1. Sube la versión en `package.json` (la app la muestra con `app.getVersion()`) y haz commit.
+2. Crea el tag, que debe coincidir con `package.json` (el workflow lo comprueba): `git tag -a v1.2.0 -m "v1.2.0"`.
+3. Sube la rama y el tag: `git push origin develop` y `git push origin v1.2.0`.
+4. En _Actions_ aparece **Release v1.2.0** con 4 jobs (borrador + Windows + macOS + Linux).
+5. Revisa el borrador en _Releases_ (`Route-Creator-Setup-X.Y.Z.exe`, `Route-Creator-X.Y.Z-arm64.dmg`,
+   `Route-Creator-X.Y.Z.AppImage`) y pulsa **Publish release**. La web pasa sola a la nueva versión.
+
+Si un build falla: corrige, borra el tag (`git tag -d vX.Y.Z && git push origin :refs/tags/vX.Y.Z`), vuelve a crearlo
+sobre el commit bueno y súbelo.
 
 ## 🔧 Calidad de código
 
-El proyecto usa **ESLint v9** (flat config) + **Prettier** para garantizar calidad y consistencia:
+El proyecto usa **ESLint v9** (flat config) + **Prettier**:
 
 ```bash
-# Verificar linting
-pnpm lint
-
-# Auto-corregir
-pnpm lint:fix
-
-# Verificar formato
-pnpm format:check
+pnpm lint           # verificar
+pnpm lint:fix       # auto-corregir
+pnpm format:check   # verificar formato
 ```
 
-La configuración de ESLint está en `eslint.config.mjs` y aplica reglas diferenciadas para el proceso principal (Node.js) y el renderer (browser).
+La configuración de ESLint está en `eslint.config.mjs` y aplica reglas diferenciadas para el proceso principal
+(Node.js), el renderer y la landing (navegador).
 
 ## 📄 Licencia
 
@@ -181,10 +218,9 @@ Las contribuciones son bienvenidas. Por favor, abre un issue o envía un pull re
 
 ## 📊 Roadmap
 
-- [ ] Perfil de elevación para rutas
+- [ ] Gráfico de perfil de elevación
+- [ ] Usar la altura máxima de la autocaravana al calcular la ruta
 - [ ] Estimación de tiempo/esfuerzo
-- [ ] Sincronización con servicios en la nube
-- [ ] Exportación a otros formatos además de GPX
-- [ ] Aplicación móvil complementaria
+- [ ] Guardar y recuperar la ruta en curso entre sesiones
+- [ ] Exportación a otros formatos además de GPX (KML, TCX)
 - [ ] Integración con Strava y otras plataformas
-- [ ] Mover Leaflet y localforage de CDN a dependencias locales (mejor soporte offline)
