@@ -1,20 +1,42 @@
-const { app, BrowserWindow, ipcMain, dialog } = require('electron');
+const { app, BrowserWindow, ipcMain, dialog, shell } = require('electron');
 const path = require('path');
 const fs = require('fs');
 const { XMLBuilder } = require('fast-xml-parser');
-const fetch = require('node-fetch');
 
-// Cargar configuración desde config.json (gitignored) con fallback a config.example.json
-let appConfig = {};
-try {
-  appConfig = JSON.parse(fs.readFileSync(path.join(__dirname, 'config.json'), 'utf8'));
-} catch {
+// API key de OpenRouteService. Se guarda desde la app en <userData>/settings.json; en desarrollo
+// se puede usar config.json (gitignored y excluido del instalador, ver config.example.json)
+const PLACEHOLDER_API_KEY = 'YOUR_OPENROUTESERVICE_API_KEY_HERE';
+
+function settingsPath() {
+  return path.join(app.getPath('userData'), 'settings.json');
+}
+
+function readJson(filePath) {
   try {
-    appConfig = JSON.parse(fs.readFileSync(path.join(__dirname, 'config.example.json'), 'utf8'));
+    return JSON.parse(fs.readFileSync(filePath, 'utf8'));
   } catch {
-    appConfig = { openRouteServiceApiKey: '' };
+    return {};
   }
 }
+
+function cleanApiKey(value) {
+  const key = typeof value === 'string' ? value.trim() : '';
+  return key === PLACEHOLDER_API_KEY ? '' : key;
+}
+
+// Devuelve la clave y de dónde sale: 'settings' (guardada en la app), 'config' (config.json) o null
+function getApiKey() {
+  const saved = cleanApiKey(readJson(settingsPath()).openRouteServiceApiKey);
+  if (saved) return { key: saved, source: 'settings' };
+
+  const dev = cleanApiKey(readJson(path.join(__dirname, 'config.json')).openRouteServiceApiKey);
+  if (dev) return { key: dev, source: 'config' };
+
+  return { key: '', source: null };
+}
+
+// User-Agent identificable: la política de uso de teselas de OpenStreetMap lo exige
+const USER_AGENT = `RouteCreator/${app.getVersion()} (+https://github.com/cmurestudillos/route-creator)`;
 
 // Variable para almacenar la ventana principal
 let mainWindow;
@@ -24,7 +46,7 @@ function createWindow() {
   mainWindow = new BrowserWindow({
     width: 1200,
     height: 800,
-    title: 'RouteCreator - Creador de Rutas GPX',
+    title: 'Route Creator - Creador de Rutas GPX',
     webPreferences: {
       nodeIntegration: false,
       contextIsolation: true,
@@ -32,11 +54,29 @@ function createWindow() {
     },
   });
 
+  // Los enlaces externos (p. ej. la atribución del mapa) se abren en el navegador del sistema:
+  // sin esto, un clic en "Leaflet" u "OpenStreetMap" sacaba la ventana de la app sin forma de volver
+  mainWindow.webContents.setWindowOpenHandler(({ url }) => {
+    openExternalLink(url);
+    return { action: 'deny' };
+  });
+  mainWindow.webContents.on('will-navigate', (event, url) => {
+    event.preventDefault();
+    openExternalLink(url);
+  });
+
   // Cargar el archivo HTML principal
   mainWindow.loadFile('index.html');
 
   // Abrir DevTools en desarrollo para depuración
   // mainWindow.webContents.openDevTools();
+}
+
+// Abre en el navegador del sistema solo URLs http(s)
+function openExternalLink(url) {
+  if (/^https?:\/\//i.test(url)) {
+    shell.openExternal(url);
+  }
 }
 
 // Evento cuando la aplicación está lista
@@ -53,10 +93,35 @@ app.on('window-all-closed', function () {
   if (process.platform !== 'darwin') app.quit();
 });
 
-// Exponer configuración al renderer de forma segura (solo campos permitidos)
+// Exponer configuración al renderer. La API key no sale del proceso principal: solo si hay una y su origen
 ipcMain.handle('get-config', () => ({
-  openRouteServiceApiKey: appConfig.openRouteServiceApiKey || '',
+  apiKeySource: getApiKey().source,
+  version: app.getVersion(),
 }));
+
+// Guardar (o borrar, con una cadena vacía) la API key de OpenRouteService
+ipcMain.handle('set-api-key', (event, value) => {
+  try {
+    const key = cleanApiKey(value);
+    if (key.length > 200 || /\s/.test(key)) {
+      return { success: false, error: 'La API key no tiene un formato válido' };
+    }
+
+    const settings = readJson(settingsPath());
+    if (key) {
+      settings.openRouteServiceApiKey = key;
+    } else {
+      delete settings.openRouteServiceApiKey;
+    }
+    fs.mkdirSync(path.dirname(settingsPath()), { recursive: true });
+    fs.writeFileSync(settingsPath(), JSON.stringify(settings, null, 2));
+
+    return { success: true, apiKeySource: getApiKey().source };
+  } catch (error) {
+    console.error('Error al guardar la API key:', error);
+    return { success: false, error: error.message };
+  }
+});
 
 // Manejo de eventos IPC para guardar rutas en formato GPX
 ipcMain.handle('save-gpx', async (event, routeData) => {
@@ -105,10 +170,45 @@ ipcMain.handle('import-gpx', async () => {
   }
 });
 
+// Perfiles de OpenRouteService que ofrece la interfaz
+const ROUTING_PROFILES = ['driving-car', 'driving-hgv', 'cycling-regular', 'cycling-mountain', 'foot-hiking'];
+
+// Servidores de teselas permitidos para la descarga offline
+const TILE_URL_PATTERNS = [
+  /^https:\/\/([abc]\.)?tile\.openstreetmap\.org\//,
+  /^https:\/\/([abc]\.)?tile\.openstreetmap\.fr\//,
+  /^https:\/\/server\.arcgisonline\.com\//,
+];
+
+// Lista de pares [lng, lat] numéricos (OpenRouteService admite como máximo 50 puntos)
+function isValidCoordinateList(coordinates) {
+  return (
+    Array.isArray(coordinates) &&
+    coordinates.length >= 2 &&
+    coordinates.length <= 50 &&
+    coordinates.every(c => Array.isArray(c) && c.length === 2 && c.every(Number.isFinite))
+  );
+}
+
 // Manejador para solicitudes de enrutamiento desde el renderer
 ipcMain.handle('fetch-route', async (event, requestData) => {
   try {
-    const { profile, coordinates, apiKey } = requestData;
+    const { profile, coordinates } = requestData || {};
+    const apiKey = getApiKey().key;
+
+    if (!apiKey) {
+      return {
+        success: false,
+        error: 'Falta la API key de OpenRouteService. Pégala en "Enrutamiento automático" y pulsa Guardar.',
+      };
+    }
+
+    if (!ROUTING_PROFILES.includes(profile)) {
+      return { success: false, error: `Perfil de ruta no válido: ${profile}` };
+    }
+    if (!isValidCoordinateList(coordinates)) {
+      return { success: false, error: 'Coordenadas no válidas' };
+    }
 
     // URL de la API de OpenRouteService
     const apiUrl = `https://api.openrouteservice.org/v2/directions/${profile}/geojson`;
@@ -119,20 +219,37 @@ ipcMain.handle('fetch-route', async (event, requestData) => {
       headers: {
         Authorization: apiKey,
         'Content-Type': 'application/json',
+        'User-Agent': USER_AGENT,
       },
+      signal: AbortSignal.timeout(30000),
       body: JSON.stringify({
         coordinates: coordinates,
-        profile: profile,
-        format: 'geojson',
+        elevation: true, // Altitud de cada punto de la ruta para el GPX
+        instructions: false,
       }),
     });
 
     // Verificar si la respuesta es correcta
     if (!response.ok) {
+      if (response.status === 401 || response.status === 403) {
+        return {
+          success: false,
+          error: `OpenRouteService ha rechazado la API key (${response.status}). Revisa que sea correcta.`,
+        };
+      }
+
+      // La API devuelve el motivo en JSON ({ error: { message } }); si no, el texto tal cual
       const errorText = await response.text();
+      let message = errorText;
+      try {
+        const body = JSON.parse(errorText);
+        message = body.error?.message || body.error || errorText;
+      } catch {
+        // No es JSON: se muestra el texto
+      }
       return {
         success: false,
-        error: `Error en la API (${response.status}): ${errorText}`,
+        error: `Error en la API (${response.status}): ${message}`,
       };
     }
 
@@ -149,7 +266,15 @@ ipcMain.handle('fetch-route', async (event, requestData) => {
 // Manejador para solicitudes de descarga de mapas
 ipcMain.handle('download-tile', async (event, tileUrl) => {
   try {
-    const response = await fetch(tileUrl);
+    // Solo se descargan teselas de los servidores de mapas que usa la app
+    if (typeof tileUrl !== 'string' || !TILE_URL_PATTERNS.some(pattern => pattern.test(tileUrl))) {
+      throw new Error('URL de tesela no permitida');
+    }
+
+    const response = await fetch(tileUrl, {
+      headers: { 'User-Agent': USER_AGENT },
+      signal: AbortSignal.timeout(20000),
+    });
 
     if (!response.ok) {
       throw new Error(`Error descargando tesela: ${response.status}`);
@@ -164,6 +289,9 @@ ipcMain.handle('download-tile', async (event, tileUrl) => {
     return { success: false, error: error.message };
   }
 });
+
+// Espacio de nombres de las extensiones propias del GPX
+const ROUTE_CREATOR_NS = 'https://github.com/cmurestudillos/route-creator';
 
 // Función para construir el contenido GPX
 function buildGPXContent(routeData) {
@@ -197,6 +325,21 @@ function buildGPXContent(routeData) {
     extendedDesc += `. Puntos de interés: ${pois.length}`;
   }
 
+  // Puntos de interés como waypoints (<wpt>). El esquema GPX 1.1 fija el orden de los
+  // elementos: en <gpx> metadata → wpt → trk, y en <wpt> time → name → desc → sym → type
+  const wpt =
+    pois && pois.length > 0
+      ? pois.map(poi => ({
+          '@_lat': poi.lat,
+          '@_lon': poi.lng,
+          time: poi.time || new Date().toISOString(),
+          name: poi.description,
+          desc: `${poi.description} - ${poi.type}`,
+          sym: mapPoiTypeToGarminSymbol(poi.type), // Símbolo Garmin compatible
+          type: poi.type,
+        }))
+      : undefined;
+
   // Objeto base GPX
   const gpxObj = {
     '?xml': { '@_version': '1.0', '@_encoding': 'UTF-8' },
@@ -205,23 +348,26 @@ function buildGPXContent(routeData) {
       '@_creator': 'RouteCreator App',
       '@_xmlns': 'http://www.topografix.com/GPX/1/1',
       '@_xmlns:xsi': 'http://www.w3.org/2001/XMLSchema-instance',
+      '@_xmlns:rc': ROUTE_CREATOR_NS,
       '@_xsi:schemaLocation': 'http://www.topografix.com/GPX/1/1 http://www.topografix.com/GPX/1/1/gpx.xsd',
       metadata: {
         name: name,
         desc: extendedDesc,
         time: new Date().toISOString(),
         keywords: type, // Útil para búsquedas
+        // Las extensiones de GPX deben ir en un espacio de nombres propio
         extensions: metadata
           ? {
-              route_metadata: {
+              'rc:route_metadata': prefixKeys('rc:', {
                 type: type,
                 ...metadata,
                 total_distance_meters: stats?.totalDistance || 0,
                 poi_count: stats?.poiCount || 0,
-              },
+              }),
             }
           : undefined,
       },
+      wpt,
       trk: {
         name: name,
         type: type,
@@ -229,26 +375,14 @@ function buildGPXContent(routeData) {
           trkpt: waypoints.map(wp => ({
             '@_lat': wp.lat,
             '@_lon': wp.lng,
-            ele: wp.elevation || 0,
+            // <ele> es opcional: solo se escribe si se conoce la altitud
+            ele: Number.isFinite(wp.elevation) ? wp.elevation : undefined,
             time: wp.time || new Date().toISOString(),
           })),
         },
       },
     },
   };
-
-  // Añadir puntos de interés como waypoints en el GPX
-  if (pois && pois.length > 0) {
-    gpxObj.gpx.wpt = pois.map(poi => ({
-      '@_lat': poi.lat,
-      '@_lon': poi.lng,
-      name: poi.description,
-      desc: `${poi.description} - ${poi.type}`,
-      sym: mapPoiTypeToGarminSymbol(poi.type), // Símbolo Garmin compatible
-      type: poi.type,
-      time: poi.time || new Date().toISOString(),
-    }));
-  }
 
   // Opciones para la conversión a XML
   const options = {
@@ -259,6 +393,11 @@ function buildGPXContent(routeData) {
 
   const builder = new XMLBuilder(options);
   return builder.build(gpxObj);
+}
+
+// Añade un prefijo de espacio de nombres a las claves de un objeto
+function prefixKeys(prefix, obj) {
+  return Object.fromEntries(Object.entries(obj).map(([key, value]) => [prefix + key, value]));
 }
 
 // Función para mapear tipos de POI a símbolos compatibles con Garmin

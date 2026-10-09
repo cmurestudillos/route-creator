@@ -3,7 +3,10 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>RouteCreator - Creador de Rutas GPX</title>
+    <meta
+      http-equiv="Content-Security-Policy"
+      content="default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob: https://*.tile.openstreetmap.org https://*.tile.openstreetmap.fr https://server.arcgisonline.com; connect-src 'self'" />
+    <title>Route Creator - Creador de Rutas GPX</title>
     <link rel="stylesheet" href="./node_modules/leaflet/dist/leaflet.css" />
     <style>
       body,
@@ -71,7 +74,8 @@
         display: flex;
         justify-content: space-between;
       }
-      .waypoint-item button {
+      .waypoint-item button,
+      .poi-item button {
         width: auto;
         background-color: #f44336;
         margin: 0;
@@ -217,12 +221,56 @@
       .delete-point-btn:hover {
         background-color: #d32f2f;
       }
+
+      .route-point {
+        box-sizing: border-box;
+        border-radius: 50%;
+        border: 3px solid #1e6fd9;
+        background-color: white;
+        box-shadow: 0 1px 3px rgba(0, 0, 0, 0.45);
+      }
+
+      .route-point-start {
+        border-color: #2e7d32;
+        background-color: #a5d6a7;
+      }
+
+      .route-point-end {
+        border-color: #c62828;
+        background-color: #ef9a9a;
+      }
+
+      .poi-icon {
+        background: none;
+        border: none;
+      }
+
+      .poi-marker {
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        width: 30px;
+        height: 30px;
+        box-sizing: border-box;
+        border-radius: 50%;
+        border: 3px solid var(--poi-color);
+        background-color: white;
+        font-size: 14px;
+        box-shadow: 0 1px 4px rgba(0, 0, 0, 0.4);
+      }
+
+      .app-version {
+        font-size: 12px;
+        color: #888;
+        text-align: center;
+        margin-top: 20px;
+      }
     </style>
   </head>
   <body>
     <div class="container">
       <div class="sidebar">
-        <h1>RouteCreator</h1>
+        <h1>Route Creator</h1>
         <div class="form-group">
           <label for="route-name">Nombre de la Ruta:</label>
           <input type="text" id="route-name" placeholder="Mi ruta favorita" />
@@ -365,6 +413,17 @@
         <div class="actions routing-actions">
           <h3>Enrutamiento automático</h3>
           <div class="form-group">
+            <label for="ors-api-key">API key de OpenRouteService:</label>
+            <input type="password" id="ors-api-key" autocomplete="off" spellcheck="false" />
+            <button id="save-api-key" type="button" class="secondary-button">Guardar API key</button>
+            <p class="info-text">
+              <span id="api-key-status"></span>
+              <a href="https://openrouteservice.org/dev/#/signup" target="_blank" rel="noopener"
+                >Conseguir una gratis</a
+              >
+            </p>
+          </div>
+          <div class="form-group">
             <label for="routing-profile">Perfil de ruta:</label>
             <select id="routing-profile">
               <option value="driving-car">Automóvil</option>
@@ -420,6 +479,8 @@
             ver sus coordenadas y eliminarlo, o haz clic derecho sobre el marcador para eliminarlo al instante.
           </p>
         </div>
+
+        <p class="app-version">Route Creator <span id="app-version"></span></p>
       </div>
 
       <div class="map-container">

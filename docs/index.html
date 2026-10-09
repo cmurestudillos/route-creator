@@ -1,0 +1,605 @@
+<!doctype html>
+<html lang="es" data-theme="auto">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Route Creator — Crea rutas de MTB, ciclismo y autocaravana en GPX</title>
+    <meta
+      name="description"
+      content="Aplicación de escritorio para diseñar rutas de MTB, ciclismo en ruta y autocaravana sobre el mapa, calcularlas por caminos y carreteras y exportarlas a GPX. Windows, macOS y Linux." />
+    <meta name="color-scheme" content="light dark" />
+    <meta
+      http-equiv="Content-Security-Policy"
+      content="default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self' data:; connect-src https://api.github.com" />
+    <link rel="icon" href="assets/icons/icon.png" />
+    <link rel="stylesheet" href="assets/css/styles.css" />
+
+    <!-- Open Graph -->
+    <meta property="og:type" content="website" />
+    <meta property="og:title" content="Route Creator — Crea rutas de MTB, ciclismo y autocaravana en GPX" />
+    <meta
+      property="og:description"
+      content="Marca los puntos en el mapa, calcula la ruta por caminos y carreteras, añade puntos de interés y expórtala a GPX. Gratis y de código abierto." />
+    <meta
+      property="og:image"
+      content="https://cmurestudillos.github.io/route-creator/assets/screenshots/01-ruta-mtb.jpg" />
+    <meta property="og:url" content="https://cmurestudillos.github.io/route-creator/" />
+  </head>
+  <body>
+    <a class="skip-link" href="#main">Saltar al contenido</a>
+
+    <header class="site-header">
+      <div class="container header-inner">
+        <a class="brand" href="#/">
+          <img src="assets/icons/icon.png" alt="" width="32" height="32" />
+          <span>Route Creator</span>
+        </a>
+
+        <button class="nav-toggle" id="navToggle" aria-expanded="false" aria-controls="siteNav" aria-label="Abrir menú">
+          <span></span><span></span><span></span>
+        </button>
+
+        <nav class="site-nav" id="siteNav" aria-label="Navegación principal">
+          <a href="#/" data-route-link="/">Inicio</a>
+          <a href="#/caracteristicas" data-route-link="/caracteristicas">Características</a>
+          <a href="#/capturas" data-route-link="/capturas">Capturas</a>
+          <a href="#/descargas" data-route-link="/descargas">Descargas</a>
+          <a href="#/documentacion" data-route-link="/documentacion">Documentación</a>
+          <a class="nav-cta" href="https://github.com/cmurestudillos/route-creator" rel="noopener">GitHub</a>
+          <button class="theme-toggle" id="themeToggle" aria-label="Cambiar tema" title="Cambiar tema">
+            <span aria-hidden="true">🌗</span>
+          </button>
+        </nav>
+      </div>
+    </header>
+
+    <main id="main">
+      <!-- ══════════════════ INICIO ══════════════════ -->
+      <section class="view" data-route="/">
+        <div class="hero">
+          <div class="container hero-inner">
+            <div class="hero-copy">
+              <p class="eyebrow">
+                <span class="dot"></span> Código abierto · MIT ·
+                <span id="heroVersion">v1.2.0</span>
+              </p>
+              <h1>Diseña tu ruta y llévatela en GPX</h1>
+              <p class="lead">
+                Marca los puntos en el mapa, deja que OpenRouteService calcule el recorrido por caminos y carreteras y
+                exporta un GPX con el track completo, la altitud y tus puntos de interés. Para MTB, ciclismo en ruta y
+                autocaravana.
+              </p>
+              <div class="hero-actions">
+                <a class="btn btn-primary btn-lg" id="heroDownload" href="#/descargas"> ⬇ Descargar gratis </a>
+                <a class="btn btn-ghost btn-lg" href="#/capturas">Ver capturas</a>
+              </div>
+              <p class="hero-meta" id="heroMeta">Windows · macOS · Linux — sin registro ni cuentas</p>
+            </div>
+
+            <figure class="hero-shot">
+              <img
+                src="assets/screenshots/01-ruta-mtb.jpg"
+                alt="Route Creator con una ruta de MTB calculada de Cercedilla al puerto de Navacerrada sobre el mapa topográfico"
+                width="1280"
+                height="800"
+                loading="eager" />
+            </figure>
+          </div>
+        </div>
+
+        <div class="container">
+          <ul class="stat-row">
+            <li><strong>3</strong><span>tipos de ruta</span></li>
+            <li><strong>5</strong><span>perfiles de cálculo</span></li>
+            <li><strong>6</strong><span>tipos de punto de interés</span></li>
+            <li><strong>GPX 1.1</strong><span>importar y exportar</span></li>
+          </ul>
+
+          <h2 class="section-title">Cómo funciona</h2>
+          <ol class="steps">
+            <li>
+              <span class="step-num">1</span>
+              <h3>Marca los puntos</h3>
+              <p>
+                Elige MTB, ciclismo en ruta o autocaravana y haz clic en el mapa para añadir los puntos de paso.
+                Arrástralos para ajustarlos.
+              </p>
+            </li>
+            <li>
+              <span class="step-num">2</span>
+              <h3>Calcula el recorrido</h3>
+              <p>
+                Pulsa <strong>Calcular ruta automática</strong> y la ruta se ajusta a caminos y carreteras según el
+                perfil elegido, con su distancia real.
+              </p>
+            </li>
+            <li>
+              <span class="step-num">3</span>
+              <h3>Exporta a GPX</h3>
+              <p>
+                <strong>Exportar como GPX</strong> guarda el track completo con altitud, los puntos de interés y los
+                datos de la ruta, listo para tu GPS o tu app de navegación.
+              </p>
+            </li>
+          </ol>
+
+          <div class="cta-band">
+            <div>
+              <h2>¿Preparas la próxima salida?</h2>
+              <p>
+                Instaladores para Windows, macOS y Linux. Para calcular rutas solo necesitas una API key gratuita de
+                OpenRouteService.
+              </p>
+            </div>
+            <a class="btn btn-primary btn-lg" href="#/descargas">Ir a descargas</a>
+          </div>
+        </div>
+      </section>
+
+      <!-- ══════════════════ CARACTERÍSTICAS ══════════════════ -->
+      <section class="view" data-route="/caracteristicas">
+        <div class="container">
+          <h1 class="page-title">Características</h1>
+          <p class="page-lead">
+            Todo lo necesario para planificar una ruta sobre el mapa y llevarla a tu dispositivo, sin cuentas ni
+            suscripciones.
+          </p>
+
+          <div class="card-grid">
+            <article class="card">
+              <span class="card-icon">🗺️</span>
+              <h3>Un mapa para cada actividad</h3>
+              <p>
+                Topográfico para MTB, OSM Humanitarian para ciclismo y OpenStreetMap para autocaravana. Puedes cambiar
+                de capa cuando quieras desde el control del mapa.
+              </p>
+            </article>
+            <article class="card">
+              <span class="card-icon">📍</span>
+              <h3>Edición directa en el mapa</h3>
+              <p>
+                Clic para añadir un punto, arrastrar para moverlo, clic sobre él para ver sus coordenadas y eliminarlo,
+                o clic derecho para borrarlo al instante.
+              </p>
+            </article>
+            <article class="card">
+              <span class="card-icon">🧭</span>
+              <h3>Ruta por caminos y carreteras</h3>
+              <p>
+                Cálculo con <a href="https://openrouteservice.org/" rel="noopener">OpenRouteService</a> entre hasta 50
+                puntos. Se exporta la geometría completa con la altitud de cada punto.
+              </p>
+            </article>
+            <article class="card">
+              <span class="card-icon">🚐</span>
+              <h3>Puntos de interés</h3>
+              <p>
+                En rutas de autocaravana: áreas de pernocta y de servicio, agua, gasolineras, GLP y miradores, cada uno
+                con su color y su símbolo Garmin en el GPX.
+              </p>
+            </article>
+            <article class="card">
+              <span class="card-icon">💾</span>
+              <h3>Importar y exportar GPX</h3>
+              <p>
+                Abre tracks o rutas GPX (también de miles de puntos) para editarlos y exporta GPX&nbsp;1.1 válido según
+                el esquema oficial.
+              </p>
+            </article>
+            <article class="card">
+              <span class="card-icon">📶</span>
+              <h3>Mapas sin conexión</h3>
+              <p>
+                Guarda el área visible del mapa entre los niveles de zoom que elijas y consúltala después en modo
+                offline.
+              </p>
+            </article>
+          </div>
+
+          <h2 class="section-title">Tipos de ruta</h2>
+          <div class="table-wrap">
+            <table>
+              <thead>
+                <tr>
+                  <th>Tipo</th>
+                  <th>Mapa</th>
+                  <th>Perfil de cálculo</th>
+                  <th>Datos que se guardan en el GPX</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr>
+                  <td>MTB</td>
+                  <td>Topográfico (Esri)</td>
+                  <td>MTB/BTT</td>
+                  <td>Dificultad técnica y tipo de superficie</td>
+                </tr>
+                <tr>
+                  <td>Ciclismo en ruta</td>
+                  <td>OSM Humanitarian</td>
+                  <td>Ciclismo en ruta</td>
+                  <td>Nivel de tráfico y calidad del asfalto</td>
+                </tr>
+                <tr>
+                  <td>Autocaravana</td>
+                  <td>OpenStreetMap</td>
+                  <td>Vehículo pesado</td>
+                  <td>Altura máxima, tipo de carreteras, áreas de pernocta y puntos de interés</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+          <p class="muted small">
+            El perfil se elige solo al cambiar el tipo de ruta, y puedes cambiarlo por cualquiera de los cinco:
+            automóvil, vehículo pesado, ciclismo en ruta, MTB/BTT o a pie (senderismo).
+          </p>
+
+          <h2 class="section-title">Puntos de interés y símbolos en el GPX</h2>
+          <div class="table-wrap">
+            <table>
+              <thead>
+                <tr>
+                  <th>Punto de interés</th>
+                  <th>Símbolo Garmin (<code>&lt;sym&gt;</code>)</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr>
+                  <td>🅿️ Área de pernocta</td>
+                  <td><code>Parking Area</code></td>
+                </tr>
+                <tr>
+                  <td>🚐 Área de servicio</td>
+                  <td><code>Gas Station</code></td>
+                </tr>
+                <tr>
+                  <td>💧 Punto de agua</td>
+                  <td><code>Drinking Water</code></td>
+                </tr>
+                <tr>
+                  <td>⛽ Gasolinera</td>
+                  <td><code>Gas Station</code></td>
+                </tr>
+                <tr>
+                  <td>🔥 Punto de recarga de GLP</td>
+                  <td><code>Gas Station</code></td>
+                </tr>
+                <tr>
+                  <td>🔭 Mirador</td>
+                  <td><code>Scenic Area</code></td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+
+          <h2 class="section-title">Formatos y servicios</h2>
+          <ul class="chip-list">
+            <li>GPX 1.1 (track, ruta y waypoints)</li>
+            <li>OpenRouteService</li>
+            <li>OpenStreetMap</li>
+            <li>Esri World Topo</li>
+            <li>OSM Humanitarian</li>
+          </ul>
+        </div>
+      </section>
+
+      <!-- ══════════════════ CAPTURAS ══════════════════ -->
+      <section class="view" data-route="/capturas">
+        <div class="container">
+          <h1 class="page-title">Capturas</h1>
+          <p class="page-lead">
+            Capturas reales de la aplicación con rutas de ejemplo calculadas con OpenRouteService. Haz clic para
+            ampliar.
+          </p>
+
+          <div class="gallery" id="gallery">
+            <figure class="shot">
+              <button
+                class="shot-btn"
+                data-full="assets/screenshots/01-ruta-mtb.jpg"
+                data-caption="Ruta de MTB de Cercedilla al puerto de Navacerrada: los puntos marcados (línea discontinua) y la ruta calculada por los caminos.">
+                <img
+                  src="assets/screenshots/01-ruta-mtb.jpg"
+                  alt="Ruta de MTB calculada sobre el mapa topográfico con el panel de enrutamiento automático"
+                  loading="lazy" />
+              </button>
+              <figcaption>
+                <strong>Ruta de MTB calculada</strong> — 8,5 km por caminos sobre el mapa topográfico, lista para
+                exportar.
+              </figcaption>
+            </figure>
+
+            <figure class="shot">
+              <button
+                class="shot-btn"
+                data-full="assets/screenshots/02-autocaravana-pois.jpg"
+                data-caption="Ruta de autocaravana por la costa asturiana con áreas de pernocta, servicio, agua, gasolinera, GLP y un mirador.">
+                <img
+                  src="assets/screenshots/02-autocaravana-pois.jpg"
+                  alt="Ruta de autocaravana por Asturias con puntos de interés de colores y su lista en el panel lateral"
+                  loading="lazy" />
+              </button>
+              <figcaption>
+                <strong>Autocaravana con puntos de interés</strong> — cada tipo con su color, en el mapa y en la lista.
+              </figcaption>
+            </figure>
+
+            <figure class="shot">
+              <button
+                class="shot-btn"
+                data-full="assets/screenshots/03-importar-gpx.jpg"
+                data-caption="Track GPX de ciclismo de 1210 puntos importado para editarlo: cada punto se puede mover o eliminar.">
+                <img
+                  src="assets/screenshots/03-importar-gpx.jpg"
+                  alt="Track de ciclismo importado desde un GPX con sus puntos en el mapa y en la lista lateral"
+                  loading="lazy" />
+              </button>
+              <figcaption>
+                <strong>GPX importado</strong> — un track de 1210 puntos listo para retocar punto a punto.
+              </figcaption>
+            </figure>
+
+            <figure class="shot">
+              <button
+                class="shot-btn"
+                data-full="assets/screenshots/04-mapas-offline.jpg"
+                data-caption="Área de Cercedilla guardada para uso sin conexión y modo offline activado.">
+                <img
+                  src="assets/screenshots/04-mapas-offline.jpg"
+                  alt="Panel de mapas sin conexión con las teselas guardadas y el modo offline activado"
+                  loading="lazy" />
+              </button>
+              <figcaption><strong>Mapas sin conexión</strong> — guarda un área y consúltala sin internet.</figcaption>
+            </figure>
+          </div>
+        </div>
+      </section>
+
+      <!-- ══════════════════ DESCARGAS ══════════════════ -->
+      <section class="view" data-route="/descargas">
+        <div class="container">
+          <h1 class="page-title">Descargas</h1>
+          <p class="page-lead">
+            Última versión: <strong id="releaseTag">v1.2.0</strong>
+            <span id="releaseDate" class="muted"></span>
+          </p>
+
+          <div class="download-grid" id="downloadGrid">
+            <article class="download-card" data-os="windows">
+              <span class="os-icon" aria-hidden="true">🪟</span>
+              <h3>Windows</h3>
+              <p class="os-detail">Instalador <code>.exe</code> · 64 bits</p>
+              <a
+                class="btn btn-primary"
+                data-dl="windows"
+                href="https://github.com/cmurestudillos/route-creator/releases/latest"
+                >Descargar</a
+              >
+              <p class="dl-size" data-size="windows">Route-Creator-Setup-*.exe</p>
+            </article>
+
+            <article class="download-card" data-os="mac">
+              <span class="os-icon" aria-hidden="true">🍎</span>
+              <h3>macOS</h3>
+              <p class="os-detail">Imagen <code>.dmg</code> · Apple Silicon</p>
+              <a
+                class="btn btn-primary"
+                data-dl="mac"
+                href="https://github.com/cmurestudillos/route-creator/releases/latest"
+                >Descargar</a
+              >
+              <p class="dl-size" data-size="mac">Route-Creator-*-arm64.dmg</p>
+            </article>
+
+            <article class="download-card" data-os="linux">
+              <span class="os-icon" aria-hidden="true">🐧</span>
+              <h3>Linux</h3>
+              <p class="os-detail">Ejecutable <code>.AppImage</code></p>
+              <a
+                class="btn btn-primary"
+                data-dl="linux"
+                href="https://github.com/cmurestudillos/route-creator/releases/latest"
+                >Descargar</a
+              >
+              <p class="dl-size" data-size="linux">Route-Creator-*.AppImage</p>
+            </article>
+          </div>
+
+          <p class="muted small">
+            ¿Prefieres ver todos los archivos?
+            <a href="https://github.com/cmurestudillos/route-creator/releases" rel="noopener"
+              >Todas las versiones en GitHub</a
+            >.
+          </p>
+
+          <h2 class="section-title">Notas de instalación</h2>
+          <div class="note-grid">
+            <div class="note">
+              <h3>🪟 Windows</h3>
+              <p>
+                SmartScreen puede avisar de que el editor es desconocido porque el instalador no está firmado. Pulsa
+                <em>Más información → Ejecutar de todas formas</em>.
+              </p>
+            </div>
+            <div class="note">
+              <h3>🍎 macOS</h3>
+              <p>
+                Si Gatekeeper bloquea la app, ábrela con clic derecho → <em>Abrir</em>, o ejecuta
+                <code>xattr -cr "/Applications/Route Creator.app"</code>.
+              </p>
+            </div>
+            <div class="note">
+              <h3>🐧 Linux</h3>
+              <p>
+                Dale permisos de ejecución al AppImage:
+                <code>chmod +x Route-Creator-*.AppImage</code> y lánzalo con doble clic.
+              </p>
+            </div>
+          </div>
+
+          <h2 class="section-title">Compilar desde el código</h2>
+          <pre class="code-block"><code>git clone https://github.com/cmurestudillos/route-creator.git
+cd route-creator
+pnpm install
+
+pnpm start           # ejecutar en desarrollo
+pnpm package:win     # generar instalador de Windows
+pnpm package:mac     # generar imagen de macOS
+pnpm package:linux   # generar AppImage</code></pre>
+          <p class="muted small">
+            Requisitos: Node.js 22.12+ y pnpm 11+. Los instaladores se generan en <code>release/</code>. En desarrollo
+            puedes poner tu API key en <code>config.json</code> (copia <code>config.example.json</code>) en lugar de
+            guardarla desde la app.
+          </p>
+        </div>
+      </section>
+
+      <!-- ══════════════════ DOCUMENTACIÓN ══════════════════ -->
+      <section class="view" data-route="/documentacion">
+        <div class="container docs-layout">
+          <article class="docs-body">
+            <h1 class="page-title">Documentación</h1>
+
+            <h2 id="api-key">Antes de empezar: API key de OpenRouteService</h2>
+            <p>
+              El cálculo automático de rutas usa
+              <a href="https://openrouteservice.org/" rel="noopener">OpenRouteService</a>, que pide una API key
+              gratuita. El resto de la app (mapas, edición, importar y exportar GPX) funciona sin ella.
+            </p>
+            <ol class="roadmap">
+              <li>
+                <span class="tag">1</span> Crea una cuenta en
+                <a href="https://openrouteservice.org/dev/#/signup" rel="noopener">openrouteservice.org</a> (también
+                desde el enlace <em>Conseguir una gratis</em> de la app).
+              </li>
+              <li><span class="tag">2</span> Copia tu API key desde el panel de OpenRouteService.</li>
+              <li>
+                <span class="tag">3</span> En la app, pégala en <strong>API key de OpenRouteService</strong> (sección
+                <em>Enrutamiento automático</em>) y pulsa <strong>Guardar API key</strong>. Para borrarla, guarda el
+                campo vacío.
+              </li>
+            </ol>
+            <p>La clave se guarda en la carpeta de configuración de la app, en tu equipo.</p>
+
+            <h2 id="uso">Guía de uso</h2>
+            <h3>1. Crear una ruta</h3>
+            <p>
+              Elige el <strong>tipo de ruta</strong> (cambia el mapa, las opciones y el perfil de cálculo) y haz clic en
+              el mapa para añadir puntos. El primero se marca en verde y el último en rojo. Arrastra un punto para
+              moverlo, haz clic en él para ver sus coordenadas y el botón <em>Eliminar punto</em>, o clic derecho para
+              borrarlo al instante. También puedes borrarlos con la <strong>X</strong> de la lista.
+            </p>
+
+            <h3>2. Calcular la ruta</h3>
+            <p>
+              Con al menos 2 puntos (y como máximo 50), pulsa <strong>Calcular ruta automática</strong>. La ruta
+              calculada se dibuja sobre los puntos, que se quedan como puntos de paso, y la distancia pasa a ser la
+              real. Si mueves, añades o quitas un punto, la ruta calculada se descarta y hay que volver a calcularla.
+            </p>
+
+            <h3>3. Puntos de interés (autocaravana)</h3>
+            <p>
+              Con el tipo <em>Autocaravana</em> aparecen los modos <strong>Ruta</strong> y
+              <strong>Puntos de interés</strong>. En modo POI, cada clic en el mapa añade un punto del tipo elegido.
+              También puedes pulsar <strong>Añadir POI</strong>: el siguiente clic coloca el punto y vuelves al modo en
+              el que estabas.
+            </p>
+
+            <h3>4. Exportar e importar GPX</h3>
+            <p>
+              <strong>Exportar como GPX</strong> guarda un GPX&nbsp;1.1 con el nombre y el tipo de la ruta, el track (la
+              ruta calculada completa con altitud o, si no la has calculado, tus puntos), los puntos de interés como
+              waypoints con símbolo Garmin y los datos del tipo de ruta en los metadatos.
+            </p>
+            <p>
+              <strong>Importar GPX</strong> carga los puntos de track (<code>&lt;trkpt&gt;</code>) o, si no hay, los de
+              ruta (<code>&lt;rtept&gt;</code>), y los waypoints como puntos de interés con su nombre. Si el GPX indica
+              el tipo de ruta, se aplica. Un archivo que no es GPX válido se rechaza sin tocar la ruta actual.
+            </p>
+
+            <h3>5. Mapas sin conexión</h3>
+            <p>
+              Encuadra la zona, elige el zoom mínimo y máximo y pulsa
+              <strong>Guardar área visible para uso offline</strong>. Para descargas grandes la app avisa del número de
+              teselas antes de empezar. Después, <strong>Activar modo offline</strong> muestra el mapa desde las teselas
+              guardadas.
+            </p>
+
+            <h2 id="limitaciones">Limitaciones conocidas</h2>
+            <ul class="roadmap">
+              <li>
+                <span class="tag">Cálculo</span> Necesita conexión y API key, y admite como máximo 50 puntos (límite de
+                OpenRouteService).
+              </li>
+              <li>
+                <span class="tag">Autocaravana</span> La altura máxima y el tipo de carreteras se guardan en el GPX,
+                pero todavía no se tienen en cuenta al calcular la ruta.
+              </li>
+              <li>
+                <span class="tag">Offline</span> Se guarda el mapa de OpenStreetMap estándar, sea cual sea el tipo de
+                ruta; el cálculo de rutas no funciona sin conexión.
+              </li>
+              <li><span class="tag">Instaladores</span> No están firmados (ver las notas de instalación).</li>
+            </ul>
+
+            <h2 id="arquitectura">Arquitectura</h2>
+            <pre
+              class="code-block"><code>├── main.js       # proceso principal: ventana, diálogos, GPX, OpenRouteService e IPC
+├── preload.js    # puente IPC seguro (contextIsolation, lista blanca de canales)
+├── renderer.js   # interfaz: mapa Leaflet, puntos, POIs, cálculo, importación y offline
+├── index.html    # estructura y estilos de la ventana
+├── assets/       # iconos de la app
+└── docs/         # esta web (GitHub Pages)</code></pre>
+            <p>
+              Construida con <strong>Electron</strong>, <strong>Leaflet</strong> para el mapa,
+              <strong>localForage</strong> para guardar las teselas offline y <strong>fast-xml-parser</strong> para
+              generar el GPX. Sin frameworks de UI: HTML, CSS y JavaScript.
+            </p>
+
+            <h2 id="roadmap">Roadmap</h2>
+            <ul class="roadmap">
+              <li><span class="tag">Perfil</span> Gráfico de elevación de la ruta</li>
+              <li><span class="tag">Autocaravana</span> Usar la altura máxima del vehículo al calcular la ruta</li>
+              <li><span class="tag">Tiempo</span> Estimación de tiempo y esfuerzo por perfil</li>
+              <li><span class="tag">Formatos</span> Exportar a otros formatos además de GPX (KML, TCX)</li>
+              <li><span class="tag">Integraciones</span> Strava y otras plataformas</li>
+            </ul>
+
+            <h2 id="contribuir">Contribuir</h2>
+            <p>
+              Los issues y pull requests son bienvenidos. Abre un
+              <a href="https://github.com/cmurestudillos/route-creator/issues" rel="noopener">issue</a> describiendo el
+              bug (si puedes, adjunta un GPX mínimo que lo reproduzca) o la funcionalidad que echas de menos.
+            </p>
+          </article>
+        </div>
+      </section>
+    </main>
+
+    <footer class="site-footer">
+      <div class="container footer-inner">
+        <div>
+          <p class="brand-sm">🗺️ Route Creator</p>
+          <p class="muted small">Licencia MIT · Hecho por Carlos Mur</p>
+        </div>
+        <nav aria-label="Enlaces del pie">
+          <a href="https://github.com/cmurestudillos/route-creator" rel="noopener">Repositorio</a>
+          <a href="https://github.com/cmurestudillos/route-creator/releases" rel="noopener">Versiones</a>
+          <a href="https://github.com/cmurestudillos/route-creator/issues" rel="noopener">Reportar un bug</a>
+          <a href="https://github.com/cmurestudillos" rel="noopener">@cmurestudillos</a>
+        </nav>
+      </div>
+    </footer>
+
+    <!-- Lightbox -->
+    <div class="lightbox" id="lightbox" hidden>
+      <button class="lightbox-close" id="lightboxClose" aria-label="Cerrar">✕</button>
+      <figure>
+        <img id="lightboxImg" src="" alt="" />
+        <figcaption id="lightboxCaption"></figcaption>
+      </figure>
+    </div>
+
+    <script src="assets/js/app.js"></script>
+  </body>
+</html>

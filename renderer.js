@@ -8,82 +8,52 @@ let waypoints = [];
 let currentMode = 'route'; // 'route' o 'poi'
 let poiMarkers = [];
 let pois = [];
+let pendingPoiReturnMode = null; // Modo al que volver tras colocar un POI con el botón "Añadir POI"
 
 // Variables para el enrutamiento
 let routingLayer; // Capa para mostrar la ruta calculada
-let OPENROUTE_API_KEY = ''; // Se carga desde config.json en DOMContentLoaded
+let routedTrack = null; // Ruta calculada por OpenRouteService: { points: [{ lat, lng, elevation }], distance }
+let apiKeySource = null; // Origen de la API key de OpenRouteService: 'settings', 'config' o null (sin clave)
 
 // Variables para el soporte offline
 let isOfflineMode = false;
 let tileLayerOffline;
 
-// Iconos personalizados para POIs
-const poiIcons = {
-  parking: L.icon({
-    iconUrl: './node_modules/leaflet/dist/images/marker-icon.png',
-    shadowUrl: './node_modules/leaflet/dist/images/marker-shadow.png',
-    iconSize: [25, 41],
-    iconAnchor: [12, 41],
-    popupAnchor: [1, -34],
-    shadowSize: [41, 41],
-    className: 'poi-icon parking-icon',
-  }),
-  service: L.icon({
-    iconUrl: './node_modules/leaflet/dist/images/marker-icon.png',
-    shadowUrl: './node_modules/leaflet/dist/images/marker-shadow.png',
-    iconSize: [25, 41],
-    iconAnchor: [12, 41],
-    popupAnchor: [1, -34],
-    shadowSize: [41, 41],
-    className: 'poi-icon service-icon',
-  }),
-  water: L.icon({
-    iconUrl: './node_modules/leaflet/dist/images/marker-icon.png',
-    shadowUrl: './node_modules/leaflet/dist/images/marker-shadow.png',
-    iconSize: [25, 41],
-    iconAnchor: [12, 41],
-    popupAnchor: [1, -34],
-    shadowSize: [41, 41],
-    className: 'poi-icon water-icon',
-  }),
-  fuel: L.icon({
-    iconUrl: './node_modules/leaflet/dist/images/marker-icon.png',
-    shadowUrl: './node_modules/leaflet/dist/images/marker-shadow.png',
-    iconSize: [25, 41],
-    iconAnchor: [12, 41],
-    popupAnchor: [1, -34],
-    shadowSize: [41, 41],
-    className: 'poi-icon fuel-icon',
-  }),
-  lpg: L.icon({
-    iconUrl: './node_modules/leaflet/dist/images/marker-icon.png',
-    shadowUrl: './node_modules/leaflet/dist/images/marker-shadow.png',
-    iconSize: [25, 41],
-    iconAnchor: [12, 41],
-    popupAnchor: [1, -34],
-    shadowSize: [41, 41],
-    className: 'poi-icon lpg-icon',
-  }),
-  viewpoint: L.icon({
-    iconUrl: './node_modules/leaflet/dist/images/marker-icon.png',
-    shadowUrl: './node_modules/leaflet/dist/images/marker-shadow.png',
-    iconSize: [25, 41],
-    iconAnchor: [12, 41],
-    popupAnchor: [1, -34],
-    shadowSize: [41, 41],
-    className: 'poi-icon viewpoint-icon',
-  }),
+// Iconos de los POIs: círculo con el color de cada tipo (el mismo que en la lista lateral) y un emoji,
+// para distinguirlos de los puntos de la ruta
+const POI_STYLES = {
+  parking: { color: '#3f51b5', emoji: '🅿️' },
+  service: { color: '#e91e63', emoji: '🚐' },
+  water: { color: '#2196f3', emoji: '💧' },
+  fuel: { color: '#ff5722', emoji: '⛽' },
+  lpg: { color: '#9c27b0', emoji: '🔥' },
+  viewpoint: { color: '#4caf50', emoji: '🔭' },
 };
+
+const poiIcons = Object.fromEntries(
+  Object.entries(POI_STYLES).map(([type, { color, emoji }]) => [
+    type,
+    L.divIcon({
+      className: `poi-icon ${type}-icon`,
+      html: `<span class="poi-marker" style="--poi-color: ${color}">${emoji}</span>`,
+      iconSize: [30, 30],
+      iconAnchor: [15, 15],
+      popupAnchor: [0, -15],
+    }),
+  ])
+);
 
 // Inicialización principal de la aplicación
 document.addEventListener('DOMContentLoaded', async function () {
-  // Cargar configuración (API keys, etc.) desde el proceso principal
+  // Cargar configuración desde el proceso principal (la API key no sale de él: solo si hay una)
   try {
     const config = await window.electron.ipcRenderer.invoke('get-config');
-    OPENROUTE_API_KEY = config.openRouteServiceApiKey || '';
+    apiKeySource = config.apiKeySource;
+    document.getElementById('app-version').textContent = `v${config.version}`;
   } catch (error) {
     console.error('No se pudo cargar la configuración:', error);
   }
+  updateApiKeyStatus();
 
   // Inicializar el mapa
   initMap();
@@ -207,14 +177,23 @@ function onMapClick(e) {
     // Obtener el tipo de POI seleccionado
     const poiType = document.getElementById('poi-type').value;
     addPOI(e.latlng.lat, e.latlng.lng, poiType);
+
+    // POI colocado con el botón "Añadir POI": volver al modo en el que estaba
+    if (pendingPoiReturnMode !== null) {
+      const returnMode = pendingPoiReturnMode;
+      pendingPoiReturnMode = null;
+      setEditMode(returnMode);
+    }
   }
 }
 
 // Función para añadir un punto a la ruta
-function addWaypoint(lat, lng, elevation = 0) {
+// Con deferUpdate no se refrescan la línea ni la lista (importaciones grandes: se refrescan una vez al final)
+function addWaypoint(lat, lng, elevation = null, { deferUpdate = false } = {}) {
   // Crear un marcador en el mapa
   const marker = L.marker([lat, lng], {
     draggable: true, // Permite arrastrar el marcador
+    icon: routePointIcons.middle, // updateRoutePolyline marca el inicio y el final
   }).addTo(map);
 
   // Crear un objeto waypoint
@@ -230,11 +209,13 @@ function addWaypoint(lat, lng, elevation = 0) {
   markers.push(marker);
   waypoints.push(waypoint);
 
-  // Actualizar la línea de la ruta
-  updateRoutePolyline();
+  if (!deferUpdate) {
+    // Actualizar la línea de la ruta
+    updateRoutePolyline();
 
-  // Actualizar la lista de waypoints en la interfaz
-  updateWaypointsList();
+    // Actualizar la lista de waypoints en la interfaz
+    updateWaypointsList();
+  }
 
   // Popup con información del punto y botón para eliminarlo
   marker.bindPopup(() => createWaypointPopupContent(marker));
@@ -299,7 +280,7 @@ function removeWaypointByMarker(marker) {
 }
 
 // Función para añadir un punto de interés (POI)
-function addPOI(lat, lng, type) {
+function addPOI(lat, lng, type, description) {
   // Verificar si el tipo es válido
   if (!poiIcons[type]) {
     type = 'parking'; // Tipo por defecto
@@ -317,7 +298,7 @@ function addPOI(lat, lng, type) {
     lat: lat,
     lng: lng,
     type: type,
-    description: getPoiDescription(type),
+    description: description || getPoiDescription(type),
     time: new Date().toISOString(),
   };
 
@@ -369,7 +350,7 @@ function createPOIPopupContent(marker) {
 
   const container = document.createElement('div');
   container.innerHTML = `
-    <strong>${poi.description}</strong><br>
+    <strong>${escapeHtml(poi.description)}</strong><br>
     Lat: ${poi.lat.toFixed(5)}, Lng: ${poi.lng.toFixed(5)}<br>
     <button type="button" class="delete-point-btn">Eliminar punto</button>
   `;
@@ -390,6 +371,14 @@ function removePOIByMarker(marker) {
   }
 }
 
+// Escapar texto que viene de archivos importados antes de insertarlo como HTML
+function escapeHtml(text) {
+  return String(text).replace(
+    /[&<>"']/g,
+    char => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[char]
+  );
+}
+
 // Obtener descripción para un tipo de POI
 function getPoiDescription(type) {
   const descriptions = {
@@ -408,15 +397,45 @@ function getPoiDescription(type) {
 function updateRoutePolyline() {
   const points = waypoints.map(wp => [wp.lat, wp.lng]);
   routePolyline.setLatLngs(points);
+  updateRoutePointIcons();
+
+  // Los puntos han cambiado: la ruta calculada ya no corresponde a ellos
+  discardRoutedTrack();
 
   // Actualizar estadísticas de la ruta
   updateRouteStats();
 }
 
+// Iconos de los puntos de la ruta: puntos pequeños (un track importado puede tener miles) y el inicio y el
+// final destacados en verde y rojo
+const routePointIcons = Object.fromEntries(
+  ['start', 'middle', 'end'].map(role => [
+    role,
+    L.divIcon({
+      className: `route-point route-point-${role}`,
+      iconSize: [14, 14],
+      iconAnchor: [7, 7],
+      popupAnchor: [0, -7],
+    }),
+  ])
+);
+
+// Asignar a cada marcador el icono de su posición (solo cambia los que lo necesitan)
+function updateRoutePointIcons() {
+  markers.forEach((marker, index) => {
+    const role = index === 0 ? 'start' : index === markers.length - 1 ? 'end' : 'middle';
+    if (marker.options.icon !== routePointIcons[role]) {
+      marker.setIcon(routePointIcons[role]);
+      // Inicio y final por encima del resto de puntos
+      marker.setZIndexOffset(role === 'middle' ? 0 : 1000);
+    }
+  });
+}
+
 // Función para actualizar las estadísticas de la ruta
 function updateRouteStats() {
   const pointCount = waypoints.length;
-  const totalDistance = calculateTotalDistance();
+  const totalDistance = getRouteDistance();
   const totalDistanceKm = (totalDistance / 1000).toFixed(2);
 
   // Actualizar elementos en la interfaz
@@ -458,7 +477,7 @@ function updatePOIsList() {
     poiItem.className = 'poi-item';
     poiItem.setAttribute('data-type', poi.type); // Añadir el atributo data-type para estilos CSS
     poiItem.innerHTML = `
-      <span>${poi.description}: ${poi.lat.toFixed(5)}, ${poi.lng.toFixed(5)}</span>
+      <span>${escapeHtml(poi.description)}: ${poi.lat.toFixed(5)}, ${poi.lng.toFixed(5)}</span>
       <button data-index="${index}" class="remove-poi">X</button>
     `;
     container.appendChild(poiItem);
@@ -544,22 +563,7 @@ function setupEventListeners() {
 
   // Selector de tipo de ruta - cambiar capa del mapa y opciones al cambiar
   document.getElementById('route-type').addEventListener('change', function () {
-    const routeType = this.value;
-    updateMapLayer(routeType);
-    updateRouteOptions(routeType);
-
-    // Mostrar u ocultar el contenedor de modos de edición según el tipo de ruta
-    const editModeContainer = document.getElementById('edit-mode-container');
-    if (routeType === 'Motorhome') {
-      editModeContainer.style.display = 'block';
-    } else {
-      editModeContainer.style.display = 'none';
-      // Si cambiamos a otro tipo de ruta, volver al modo de ruta
-      setEditMode('route');
-    }
-
-    // Actualizar el perfil de enrutamiento
-    updateRoutingProfile(routeType);
+    applyRouteType(this.value);
   });
 
   // Botones de modo de edición
@@ -582,33 +586,26 @@ function setupEventListeners() {
   const addPoiButton = document.getElementById('add-poi');
   if (addPoiButton) {
     addPoiButton.addEventListener('click', function () {
-      // Cambiar temporalmente al modo POI
-      const prevMode = currentMode;
+      // Cambiar temporalmente al modo POI: el siguiente clic en el mapa (onMapClick) coloca el POI
+      // y vuelve al modo anterior. Pulsar el botón varias veces no acumula clics pendientes.
+      const returnMode = pendingPoiReturnMode ?? currentMode;
       setEditMode('poi');
+      pendingPoiReturnMode = returnMode;
 
       // Solicitar al usuario que haga clic en el mapa
       alert('Ahora haz clic en el mapa para colocar el punto de interés');
-
-      // Configurar un listener único para este evento
-      const clickHandler = function (e) {
-        const poiType = document.getElementById('poi-type').value;
-        addPOI(e.latlng.lat, e.latlng.lng, poiType);
-
-        // Eliminar este listener después de usarlo una vez
-        map.off('click', clickHandler);
-
-        // Volver al modo anterior
-        setEditMode(prevMode);
-      };
-
-      // Añadir el listener
-      map.once('click', clickHandler);
     });
   }
 
   // Botón para calcular ruta
   document.getElementById('calculate-route').addEventListener('click', function () {
     calculateRoute();
+  });
+
+  // Guardar la API key de OpenRouteService
+  document.getElementById('save-api-key').addEventListener('click', saveApiKey);
+  document.getElementById('ors-api-key').addEventListener('keydown', function (e) {
+    if (e.key === 'Enter') saveApiKey();
   });
 
   // Botones para soporte offline
@@ -625,9 +622,29 @@ function setupEventListeners() {
   document.getElementById('offline-zoom-max').addEventListener('change', updateZoomLevels);
 }
 
+// Aplicar un tipo de ruta a toda la interfaz: capa del mapa, opciones, modos de edición y perfil
+function applyRouteType(routeType) {
+  updateMapLayer(routeType);
+  updateRouteOptions(routeType);
+
+  // Mostrar u ocultar el contenedor de modos de edición según el tipo de ruta
+  const editModeContainer = document.getElementById('edit-mode-container');
+  if (routeType === 'Motorhome') {
+    editModeContainer.style.display = 'block';
+  } else {
+    editModeContainer.style.display = 'none';
+    // Si cambiamos a otro tipo de ruta, volver al modo de ruta
+    setEditMode('route');
+  }
+
+  // Actualizar el perfil de enrutamiento
+  updateRoutingProfile(routeType);
+}
+
 // Función para cambiar el modo de edición
 function setEditMode(mode) {
   currentMode = mode;
+  pendingPoiReturnMode = null; // Un cambio de modo cancela el POI pendiente del botón "Añadir POI"
 
   // Actualizar clases de los botones
   const routeModeBtn = document.getElementById('route-mode');
@@ -666,8 +683,8 @@ function clearRoute() {
   poiMarkers = [];
   pois = [];
 
-  // Limpiar la capa de enrutamiento
-  routingLayer.clearLayers();
+  // Descartar la ruta calculada
+  discardRoutedTrack();
 
   // Actualizar las listas
   updateWaypointsList();
@@ -677,6 +694,11 @@ function clearRoute() {
   document.getElementById('point-count').textContent = '0';
   document.getElementById('total-distance').textContent = '0.00';
   document.getElementById('poi-count').textContent = '0';
+}
+
+// Distancia de la ruta: la de la ruta calculada si la hay, si no la de los tramos rectos entre puntos
+function getRouteDistance() {
+  return routedTrack ? routedTrack.distance : calculateTotalDistance();
 }
 
 // Función para calcular la distancia total de la ruta
@@ -692,57 +714,53 @@ function calculateTotalDistance() {
   return totalDistance;
 }
 
-// Verificar el almacenamiento offline
+// Mostrar cuántas teselas hay guardadas para uso offline (se llama al arrancar y tras cada descarga)
 async function checkOfflineStorage() {
   try {
     const storageStat = await showOfflineStorageStatus();
-    if (storageStat && storageStat.tileCount > 0) {
-      // Hay mapas disponibles offline
-      const offlineInfo = document.createElement('div');
+    let offlineInfo = document.getElementById('offline-storage-info');
+
+    if (!storageStat) {
+      if (offlineInfo) offlineInfo.remove();
+      return;
+    }
+
+    if (!offlineInfo) {
+      offlineInfo = document.createElement('p');
+      offlineInfo.id = 'offline-storage-info';
       offlineInfo.className = 'info-text';
-      offlineInfo.innerHTML = `
-        <p>Tienes ${storageStat.tileCount} teselas guardadas para uso offline 
-        (aproximadamente ${storageStat.size} MB).</p>
-      `;
 
       // Insertarlo antes del botón de guardar offline
       const offlineActions = document.querySelector('.offline-actions');
       offlineActions.insertBefore(offlineInfo, document.getElementById('save-offline').parentNode);
     }
+
+    offlineInfo.textContent = `Tienes ${storageStat.tileCount} teselas guardadas para uso offline (${storageStat.size} MB).`;
   } catch (error) {
     console.error('Error verificando almacenamiento offline:', error);
   }
 }
 
-// Actualizar la versión de showOfflineStorageStatus para retornar datos útiles
+// Contar las teselas guardadas y su tamaño (en el almacén de teselas, no en el de localForage por defecto)
 async function showOfflineStorageStatus() {
   try {
-    // Intentar acceder al almacenamiento offline
-    const allKeys = await localforage.keys();
+    let tileCount = 0;
+    let bytes = 0;
 
-    if (!allKeys || allKeys.length === 0) {
-      console.log('No hay teselas guardadas');
-      return null;
-    }
-
-    // Filtrar solo las claves de teselas
-    const tileKeys = allKeys.filter(key => key.startsWith('https://'));
-    const tileCount = tileKeys.length;
+    await tileLayerOffline._storage.iterate(value => {
+      tileCount++;
+      // Las teselas se guardan en base64: 4 caracteres por cada 3 bytes
+      bytes += typeof value === 'string' ? (value.length * 3) / 4 : 0;
+    });
 
     if (tileCount === 0) {
       console.log('No hay teselas guardadas');
       return null;
     }
 
-    console.log('Teselas guardadas:', tileCount);
-
-    // Calcular el espacio aproximado (cada tesela ~20KB en promedio)
-    const approxSize = (tileCount * 20) / 1024; // En MB
-    console.log('Espacio aproximado:', approxSize.toFixed(2), 'MB');
-
     return {
       tileCount: tileCount,
-      size: approxSize.toFixed(2),
+      size: (bytes / 1024 / 1024).toFixed(2),
     };
   } catch (error) {
     console.error('Error al verificar el almacenamiento:', error);
@@ -786,13 +804,14 @@ async function exportGPX() {
   }
 
   // Calcular estadísticas básicas de la ruta
-  const totalDistance = calculateTotalDistance();
+  const totalDistance = getRouteDistance();
 
-  // Crear objeto de datos de la ruta
+  // Crear objeto de datos de la ruta. Si se ha calculado la ruta, el track es su geometría completa
+  // (sigue las carreteras y caminos); si no, los puntos marcados en el mapa
   const routeData = {
     name: routeName,
     type: routeType,
-    waypoints: waypoints,
+    waypoints: routedTrack ? routedTrack.points : waypoints,
     pois: pois, // Añadir los POIs
     metadata: routeMetadata,
     stats: {
@@ -828,16 +847,21 @@ async function importGPX() {
       return;
     }
 
-    // Limpiar la ruta actual antes de importar una nueva
-    clearRoute();
-
-    // Analizar el contenido GPX
+    // Analizar el contenido GPX antes de tocar la ruta actual
     const gpxData = parseGPXContent(result.content);
 
     if (!gpxData) {
-      alert('El archivo GPX no es válido o está corrupto.');
+      alert('El archivo no es un GPX válido o está corrupto.');
       return;
     }
+
+    if (gpxData.waypoints.length === 0 && gpxData.pois.length === 0) {
+      alert('El archivo GPX no contiene puntos de track, de ruta ni de interés.');
+      return;
+    }
+
+    // Limpiar la ruta actual antes de cargar la nueva
+    clearRoute();
 
     // Actualizar el nombre y tipo de ruta
     if (gpxData.name) {
@@ -846,37 +870,35 @@ async function importGPX() {
 
     if (gpxData.type) {
       const routeTypeSelect = document.getElementById('route-type');
-      // Verificar si el tipo existe en el select
-      for (let i = 0; i < routeTypeSelect.options.length; i++) {
-        if (routeTypeSelect.options[i].value.toLowerCase() === gpxData.type.toLowerCase()) {
-          routeTypeSelect.selectedIndex = i;
-          break;
-        }
-      }
+      const option = [...routeTypeSelect.options].find(o => o.value.toLowerCase() === gpxData.type.toLowerCase());
 
-      // Actualizar capa del mapa y opciones
-      updateMapLayer(routeTypeSelect.value);
-      updateRouteOptions(routeTypeSelect.value);
+      // Aplicar el tipo a toda la interfaz (capa, opciones, modos de edición y perfil de enrutamiento)
+      if (option) {
+        routeTypeSelect.value = option.value;
+        applyRouteType(option.value);
+      }
     }
 
     // Cargar los waypoints de la ruta
     if (gpxData.waypoints && gpxData.waypoints.length > 0) {
       gpxData.waypoints.forEach(wp => {
-        addWaypoint(wp.lat, wp.lng, wp.elevation);
+        addWaypoint(wp.lat, wp.lng, wp.elevation, { deferUpdate: true });
       });
+      updateRoutePolyline();
+      updateWaypointsList();
     }
 
     // Cargar los puntos de interés
     if (gpxData.pois && gpxData.pois.length > 0) {
       gpxData.pois.forEach(poi => {
-        addPOI(poi.lat, poi.lng, poi.type || 'parking');
+        addPOI(poi.lat, poi.lng, poi.type || 'parking', poi.name);
       });
     }
 
-    // Centrar el mapa si hay puntos
-    if (waypoints.length > 0) {
-      const bounds = L.latLngBounds(waypoints.map(wp => [wp.lat, wp.lng]));
-      map.fitBounds(bounds, { padding: [50, 50] });
+    // Centrar el mapa en los puntos importados (track y POIs)
+    const importedPoints = [...waypoints, ...pois].map(p => [p.lat, p.lng]);
+    if (importedPoints.length > 0) {
+      map.fitBounds(L.latLngBounds(importedPoints), { padding: [50, 50], maxZoom: 16 });
     }
 
     alert(`Archivo GPX importado correctamente: ${result.filePath}`);
@@ -893,6 +915,11 @@ function parseGPXContent(gpxContent) {
     const parser = new DOMParser();
     const xmlDoc = parser.parseFromString(gpxContent, 'text/xml');
 
+    // DOMParser no lanza excepciones: indica los errores con un elemento <parsererror>
+    if (xmlDoc.querySelector('parsererror') || xmlDoc.documentElement.localName !== 'gpx') {
+      return null;
+    }
+
     // Objeto para almacenar los datos extraídos
     const gpxData = {
       name: '',
@@ -907,27 +934,32 @@ function parseGPXContent(gpxContent) {
       gpxData.name = metadataName.textContent;
     }
 
-    const trkName = xmlDoc.querySelector('trk > name');
+    const trkName = xmlDoc.querySelector('trk > name, rte > name');
     if (trkName && !gpxData.name) {
       gpxData.name = trkName.textContent;
     }
 
-    const trkType = xmlDoc.querySelector('trk > type');
+    const trkType = xmlDoc.querySelector('trk > type, rte > type');
     if (trkType) {
       gpxData.type = trkType.textContent;
     }
 
-    // Extraer waypoints de la ruta (puntos de track)
-    const trkpts = xmlDoc.querySelectorAll('trkpt');
+    // Extraer waypoints de la ruta: puntos de track (<trkpt>) o, si no hay, puntos de ruta (<rtept>)
+    let trkpts = xmlDoc.querySelectorAll('trkpt');
+    if (trkpts.length === 0) {
+      trkpts = xmlDoc.querySelectorAll('rtept');
+    }
     trkpts.forEach(trkpt => {
       const lat = parseFloat(trkpt.getAttribute('lat'));
       const lng = parseFloat(trkpt.getAttribute('lon'));
 
       if (!isNaN(lat) && !isNaN(lng)) {
-        let elevation = 0;
+        // Altitud solo si el archivo la trae (no se inventa 0)
+        let elevation = null;
         const eleElement = trkpt.querySelector('ele');
-        if (eleElement) {
-          elevation = parseFloat(eleElement.textContent) || 0;
+        if (eleElement && eleElement.textContent.trim() !== '') {
+          const value = parseFloat(eleElement.textContent);
+          elevation = Number.isFinite(value) ? value : null;
         }
 
         gpxData.waypoints.push({
@@ -969,10 +1001,14 @@ function parseGPXContent(gpxContent) {
           }
         }
 
+        // Conservar el nombre del punto si lo tiene
+        const nameElement = wpt.querySelector('name');
+
         gpxData.pois.push({
           lat,
           lng,
           type: poiType,
+          name: nameElement ? nameElement.textContent.trim() : '',
         });
       }
     });
@@ -1020,14 +1056,27 @@ function updateRoutingProfile(routeType) {
 async function calculateRoute() {
   const statusElement = document.getElementById('routing-status');
 
+  // Sin API key no se puede calcular
+  if (!apiKeySource) {
+    statusElement.textContent = 'Falta la API key de OpenRouteService: pégala arriba y pulsa "Guardar API key".';
+    document.getElementById('ors-api-key').focus();
+    return;
+  }
+
   // Verificar que hay al menos 2 puntos
   if (waypoints.length < 2) {
     statusElement.textContent = 'Necesitas al menos 2 puntos para calcular una ruta.';
     return;
   }
 
+  // Límite de la API de OpenRouteService
+  if (waypoints.length > MAX_ROUTING_POINTS) {
+    statusElement.textContent = `OpenRouteService admite como máximo ${MAX_ROUTING_POINTS} puntos y la ruta tiene ${waypoints.length}.`;
+    return;
+  }
+
   // Limpiar ruta anterior
-  routingLayer.clearLayers();
+  discardRoutedTrack();
 
   // Mostrar estado
   statusElement.textContent = 'Calculando ruta...';
@@ -1039,11 +1088,10 @@ async function calculateRoute() {
     // Preparar los puntos para la API (en formato [lng, lat])
     const coordinates = waypoints.map(wp => [wp.lng, wp.lat]);
 
-    // Llamar al proceso principal para realizar la solicitud
+    // Llamar al proceso principal para realizar la solicitud (añade la API key guardada)
     const result = await window.electron.ipcRenderer.invoke('fetch-route', {
       profile: profile,
       coordinates: coordinates,
-      apiKey: OPENROUTE_API_KEY,
     });
 
     if (!result.success) {
@@ -1054,91 +1102,132 @@ async function calculateRoute() {
     processRoutingResponse(result.data);
 
     // Actualizar estado
-    statusElement.textContent = 'Ruta calculada con éxito!';
+    statusElement.textContent = `Ruta calculada: ${(routedTrack.distance / 1000).toFixed(2)} km, ${routedTrack.points.length} puntos. Se exportará al GPX.`;
   } catch (error) {
     console.error('Error al calcular la ruta:', error);
     statusElement.textContent = `Error: ${error.message}`;
   }
 }
 
+// Mostrar si hay API key de OpenRouteService y de dónde sale
+function updateApiKeyStatus() {
+  const status = document.getElementById('api-key-status');
+  const input = document.getElementById('ors-api-key');
+
+  if (apiKeySource === 'settings') {
+    status.textContent =
+      'API key guardada. Para cambiarla, pega otra y guárdala; para borrarla, guarda el campo vacío.';
+    input.placeholder = '•••••••• (guardada)';
+  } else if (apiKeySource === 'config') {
+    status.textContent = 'Usando la API key de config.json (desarrollo).';
+    input.placeholder = 'Pega aquí tu API key';
+  } else {
+    status.textContent = 'Necesitas una API key gratuita de OpenRouteService para calcular rutas.';
+    input.placeholder = 'Pega aquí tu API key';
+  }
+}
+
+// Guardar (o borrar si el campo está vacío) la API key en la configuración de la app
+async function saveApiKey() {
+  const input = document.getElementById('ors-api-key');
+  const status = document.getElementById('api-key-status');
+
+  try {
+    const result = await window.electron.ipcRenderer.invoke('set-api-key', input.value);
+    if (!result.success) {
+      status.textContent = `No se pudo guardar: ${result.error}`;
+      return;
+    }
+
+    apiKeySource = result.apiKeySource;
+    input.value = '';
+    updateApiKeyStatus();
+
+    // Quitar el aviso de "falta la API key" del enrutamiento si lo había
+    const routingStatus = document.getElementById('routing-status');
+    if (apiKeySource && routingStatus.textContent.startsWith('Falta la API key')) {
+      routingStatus.textContent = 'API key guardada: ya puedes calcular la ruta.';
+    }
+  } catch (error) {
+    status.textContent = `No se pudo guardar: ${error.message}`;
+  }
+}
+
+// Número máximo de puntos que acepta la API de directions de OpenRouteService
+const MAX_ROUTING_POINTS = 50;
+
 // Función para procesar la respuesta de enrutamiento
 function processRoutingResponse(data) {
   // Verificar que tenemos una respuesta válida
-  if (!data || !data.features || data.features.length === 0) {
+  const route = data && data.features && data.features[0];
+  if (!route || !route.geometry || route.geometry.type !== 'LineString') {
     throw new Error('La respuesta de la API no contiene datos de ruta válidos');
   }
 
-  // Limpiar waypoints existentes (excepto el primero y el último)
-  clearIntermediateWaypoints();
-
-  // Obtener la geometría de la ruta
-  const route = data.features[0];
-
-  // Añadir la ruta al mapa
+  // Añadir la ruta al mapa. Los puntos marcados se mantienen como puntos de paso
   L.geoJSON(route, {
     style: {
       color: '#3388ff',
       weight: 6,
-      opacity: 0.7,
+      opacity: 0.8,
     },
   }).addTo(routingLayer);
 
-  // Extraer las coordenadas de la ruta
-  let routeCoordinates = [];
+  // Guardar la geometría completa ([lng, lat, elevación]) para exportarla como track
+  routedTrack = {
+    points: route.geometry.coordinates.map(([lng, lat, elevation]) => ({
+      lat,
+      lng,
+      elevation: Number.isFinite(elevation) ? elevation : null,
+    })),
+    distance: route.properties?.summary?.distance ?? calculateTotalDistance(),
+  };
+  fillElevationGaps(routedTrack.points);
 
-  if (route.geometry.type === 'LineString') {
-    routeCoordinates = route.geometry.coordinates.map(coord => [coord[1], coord[0]]);
-  }
-
-  // Crear nuevos waypoints a lo largo de la ruta
-  const numWaypoints = Math.min(20, routeCoordinates.length); // Limitar el número de waypoints
-  const step = Math.floor(routeCoordinates.length / numWaypoints);
-
-  // Guardar los puntos originales (inicio y fin)
-  const startPoint = waypoints[0];
-  const endPoint = waypoints[waypoints.length - 1];
-
-  // Limpiar los marcadores y waypoints actuales
-  markers.forEach(marker => map.removeLayer(marker));
-  markers = [];
-  waypoints = [];
-
-  // Añadir el punto de inicio
-  addWaypoint(startPoint.lat, startPoint.lng, startPoint.elevation);
-
-  // Añadir puntos intermedios
-  for (let i = step; i < routeCoordinates.length - step; i += step) {
-    const [lat, lng] = routeCoordinates[i];
-    addWaypoint(lat, lng, 0); // Elevación se puede obtener de un servicio de elevación
-  }
-
-  // Añadir el punto final
-  addWaypoint(endPoint.lat, endPoint.lng, endPoint.elevation);
-
-  // Actualizar la línea de la ruta y las estadísticas
-  updateRoutePolyline();
+  // La línea recta entre puntos pasa a ser una guía discontinua
+  routePolyline.setStyle({ dashArray: '6 8', opacity: 0.5 });
+  updateRouteStats();
 }
 
-// Función para limpiar los waypoints intermedios
-function clearIntermediateWaypoints() {
-  if (waypoints.length <= 2) return; // No hay intermedios que limpiar
+// OpenRouteService devuelve altitud 0 donde no tiene datos: los tramos a 0 entre dos puntos claramente
+// por encima del nivel del mar (> 20 m) se rellenan interpolando para no crear caídas falsas en el perfil
+function fillElevationGaps(points) {
+  let i = 0;
+  while (i < points.length) {
+    if (points[i].elevation !== 0) {
+      i++;
+      continue;
+    }
 
-  // Conservar solo el primero y el último
-  const startPoint = waypoints[0];
-  const endPoint = waypoints[waypoints.length - 1];
+    let end = i;
+    while (end < points.length && points[end].elevation === 0) end++;
 
-  // Eliminar marcadores intermedios
-  for (let i = 1; i < markers.length - 1; i++) {
-    map.removeLayer(markers[i]);
+    const before = points[i - 1];
+    const after = points[end];
+    if (before && after && before.elevation > 20 && after.elevation > 20) {
+      const steps = end - i + 1;
+      for (let k = i; k < end; k++) {
+        const t = (k - i + 1) / steps;
+        points[k].elevation = Math.round((before.elevation + (after.elevation - before.elevation) * t) * 10) / 10;
+      }
+    }
+    i = end;
   }
+}
 
-  // Reiniciar arrays conservando inicio y fin
-  markers = [markers[0], markers[markers.length - 1]];
-  waypoints = [startPoint, endPoint];
+// Descartar la ruta calculada (al cambiar los puntos o limpiar la ruta)
+function discardRoutedTrack() {
+  const hadRoute = routedTrack !== null;
 
-  // Actualizar la línea y la lista
-  updateRoutePolyline();
-  updateWaypointsList();
+  routedTrack = null;
+  routingLayer.clearLayers();
+  routePolyline.setStyle({ dashArray: null, opacity: 0.7 });
+
+  if (hadRoute) {
+    document.getElementById('routing-status').textContent =
+      'Los puntos han cambiado: vuelve a calcular la ruta para exportarla siguiendo las carreteras.';
+    updateRouteStats();
+  }
 }
 
 // Clase personalizada para manejo offline con Electron
@@ -1281,7 +1370,7 @@ class ElectronOfflineTileLayer extends L.TileLayer {
   // Método para descargar una tesela individual
   async _downloadTile(coords) {
     try {
-      const url = this.getTileUrl(coords);
+      const url = this._getDownloadUrl(coords);
       const key = this._getTileKey(coords);
 
       // Usar IPC para descargar la tesela
@@ -1311,16 +1400,22 @@ class ElectronOfflineTileLayer extends L.TileLayer {
   _calculateTilesToFetch(minZoom, maxZoom, bounds) {
     const tiles = [];
 
+    // La capa offline solo está en el mapa en modo offline: se proyecta con el CRS del mapa
+    // (this._map no existe mientras la capa no se ha añadido)
+    const crs = map.options.crs;
+    const tileSize = this.getTileSize();
+
     // Para cada nivel de zoom
     for (let z = minZoom; z <= maxZoom; z++) {
-      const northEast = this._map.project(bounds.getNorthEast(), z);
-      const southWest = this._map.project(bounds.getSouthWest(), z);
+      const northEast = crs.latLngToPoint(bounds.getNorthEast(), z);
+      const southWest = crs.latLngToPoint(bounds.getSouthWest(), z);
+      const lastIndex = Math.pow(2, z) - 1;
 
-      // Calcular los índices de las teselas
-      const minX = Math.floor(southWest.x / this.getTileSize().x);
-      const maxX = Math.floor(northEast.x / this.getTileSize().x);
-      const minY = Math.floor(northEast.y / this.getTileSize().y);
-      const maxY = Math.floor(southWest.y / this.getTileSize().y);
+      // Calcular los índices de las teselas (sin salirse del mundo)
+      const minX = Math.max(0, Math.floor(southWest.x / tileSize.x));
+      const maxX = Math.min(lastIndex, Math.floor(northEast.x / tileSize.x));
+      const minY = Math.max(0, Math.floor(northEast.y / tileSize.y));
+      const maxY = Math.min(lastIndex, Math.floor(southWest.y / tileSize.y));
 
       // Añadir todas las teselas en el área
       for (let x = minX; x <= maxX; x++) {
@@ -1331,6 +1426,24 @@ class ElectronOfflineTileLayer extends L.TileLayer {
     }
 
     return tiles;
+  }
+
+  // URL de una tesela concreta. getTileUrl() de Leaflet usa el zoom actual del mapa en lugar de coords.z,
+  // así que para descargar varios niveles de zoom se construye a partir de la plantilla
+  _getDownloadUrl(coords) {
+    const subdomains = this.options.subdomains;
+    return L.Util.template(this._url, {
+      ...this.options,
+      s: subdomains[Math.abs(coords.x + coords.y) % subdomains.length],
+      x: coords.x,
+      y: coords.y,
+      z: coords.z,
+    });
+  }
+
+  // Número de teselas que ocupa un área entre dos niveles de zoom
+  countTiles(minZoom, maxZoom, bounds) {
+    return this._calculateTilesToFetch(minZoom, maxZoom, bounds).length;
   }
 
   // Método para generar una clave única para cada tesela
@@ -1390,6 +1503,7 @@ function setupOfflineSupport() {
 
   tileLayerOffline.on('offline:save-end', function () {
     document.getElementById('offline-status').textContent = '¡Guardado completo!';
+    checkOfflineStorage();
     setTimeout(function () {
       document.querySelector('.progress-container').style.display = 'none';
     }, 2000);
@@ -1412,15 +1526,17 @@ function saveOfflineMap() {
     return;
   }
 
-  if (maxZoom - minZoom > 5) {
-    const confirmMessage = `Estás a punto de descargar ${maxZoom - minZoom + 1} niveles de zoom, lo que puede requerir mucho espacio. ¿Quieres continuar?`;
+  // Obtener los límites actuales del mapa
+  const bounds = map.getBounds();
+
+  // Avisar antes de descargas grandes (servidores de teselas comunitarios: descargar solo lo necesario)
+  const tileCount = tileLayerOffline.countTiles(minZoom, maxZoom, bounds);
+  if (tileCount > 500) {
+    const confirmMessage = `Vas a descargar ${tileCount} teselas (unos ${Math.ceil((tileCount * 20) / 1024)} MB). Acerca el mapa o baja el zoom máximo para descargar menos. ¿Quieres continuar?`;
     if (!confirm(confirmMessage)) {
       return;
     }
   }
-
-  // Obtener los límites actuales del mapa
-  const bounds = map.getBounds();
 
   // Iniciar la descarga
   tileLayerOffline.saveTiles(minZoom, maxZoom, bounds, function (error, tilesForSave) {
@@ -1441,16 +1557,10 @@ function toggleOfflineMode() {
   if (isOfflineMode) {
     // Cambiar a modo online
     button.textContent = 'Activar modo offline';
-
-    // Restaurar la capa original
-    if (currentBaseLayer) {
-      map.removeLayer(currentBaseLayer);
-    }
-
-    // Volver a añadir la capa online
-    updateMapLayer(document.getElementById('route-type').value);
-
     isOfflineMode = false;
+
+    // Volver a la capa online del tipo de ruta (updateMapLayer quita la capa offline)
+    updateMapLayer(document.getElementById('route-type').value);
   } else {
     // Cambiar a modo offline
     button.textContent = 'Desactivar modo offline';
@@ -1460,11 +1570,12 @@ function toggleOfflineMode() {
       map.removeLayer(currentBaseLayer);
     }
 
+    // Activar el modo antes de añadir la capa: createTile lo consulta al crear las primeras teselas
+    isOfflineMode = true;
+
     // Añadir la capa offline
     tileLayerOffline.addTo(map);
     currentBaseLayer = tileLayerOffline;
-
-    isOfflineMode = true;
   }
 }
 
