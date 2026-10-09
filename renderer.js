@@ -12,6 +12,7 @@ let pendingPoiReturnMode = null; // Modo al que volver tras colocar un POI con e
 
 // Variables para el enrutamiento
 let routingLayer; // Capa para mostrar la ruta calculada
+let routedTrack = null; // Ruta calculada por OpenRouteService: { points: [{ lat, lng, elevation }], distance }
 let OPENROUTE_API_KEY = ''; // Se carga desde config.json en DOMContentLoaded
 
 // Variables para el soporte offline
@@ -220,7 +221,7 @@ function onMapClick(e) {
 
 // Función para añadir un punto a la ruta
 // Con deferUpdate no se refrescan la línea ni la lista (importaciones grandes: se refrescan una vez al final)
-function addWaypoint(lat, lng, elevation = 0, { deferUpdate = false } = {}) {
+function addWaypoint(lat, lng, elevation = null, { deferUpdate = false } = {}) {
   // Crear un marcador en el mapa
   const marker = L.marker([lat, lng], {
     draggable: true, // Permite arrastrar el marcador
@@ -428,6 +429,9 @@ function updateRoutePolyline() {
   const points = waypoints.map(wp => [wp.lat, wp.lng]);
   routePolyline.setLatLngs(points);
 
+  // Los puntos han cambiado: la ruta calculada ya no corresponde a ellos
+  discardRoutedTrack();
+
   // Actualizar estadísticas de la ruta
   updateRouteStats();
 }
@@ -435,7 +439,7 @@ function updateRoutePolyline() {
 // Función para actualizar las estadísticas de la ruta
 function updateRouteStats() {
   const pointCount = waypoints.length;
-  const totalDistance = calculateTotalDistance();
+  const totalDistance = getRouteDistance();
   const totalDistanceKm = (totalDistance / 1000).toFixed(2);
 
   // Actualizar elementos en la interfaz
@@ -677,8 +681,8 @@ function clearRoute() {
   poiMarkers = [];
   pois = [];
 
-  // Limpiar la capa de enrutamiento
-  routingLayer.clearLayers();
+  // Descartar la ruta calculada
+  discardRoutedTrack();
 
   // Actualizar las listas
   updateWaypointsList();
@@ -688,6 +692,11 @@ function clearRoute() {
   document.getElementById('point-count').textContent = '0';
   document.getElementById('total-distance').textContent = '0.00';
   document.getElementById('poi-count').textContent = '0';
+}
+
+// Distancia de la ruta: la de la ruta calculada si la hay, si no la de los tramos rectos entre puntos
+function getRouteDistance() {
+  return routedTrack ? routedTrack.distance : calculateTotalDistance();
 }
 
 // Función para calcular la distancia total de la ruta
@@ -793,13 +802,14 @@ async function exportGPX() {
   }
 
   // Calcular estadísticas básicas de la ruta
-  const totalDistance = calculateTotalDistance();
+  const totalDistance = getRouteDistance();
 
-  // Crear objeto de datos de la ruta
+  // Crear objeto de datos de la ruta. Si se ha calculado la ruta, el track es su geometría completa
+  // (sigue las carreteras y caminos); si no, los puntos marcados en el mapa
   const routeData = {
     name: routeName,
     type: routeType,
-    waypoints: waypoints,
+    waypoints: routedTrack ? routedTrack.points : waypoints,
     pois: pois, // Añadir los POIs
     metadata: routeMetadata,
     stats: {
@@ -942,10 +952,12 @@ function parseGPXContent(gpxContent) {
       const lng = parseFloat(trkpt.getAttribute('lon'));
 
       if (!isNaN(lat) && !isNaN(lng)) {
-        let elevation = 0;
+        // Altitud solo si el archivo la trae (no se inventa 0)
+        let elevation = null;
         const eleElement = trkpt.querySelector('ele');
-        if (eleElement) {
-          elevation = parseFloat(eleElement.textContent) || 0;
+        if (eleElement && eleElement.textContent.trim() !== '') {
+          const value = parseFloat(eleElement.textContent);
+          elevation = Number.isFinite(value) ? value : null;
         }
 
         gpxData.waypoints.push({
@@ -1048,8 +1060,14 @@ async function calculateRoute() {
     return;
   }
 
+  // Límite de la API de OpenRouteService
+  if (waypoints.length > MAX_ROUTING_POINTS) {
+    statusElement.textContent = `OpenRouteService admite como máximo ${MAX_ROUTING_POINTS} puntos y la ruta tiene ${waypoints.length}.`;
+    return;
+  }
+
   // Limpiar ruta anterior
-  routingLayer.clearLayers();
+  discardRoutedTrack();
 
   // Mostrar estado
   statusElement.textContent = 'Calculando ruta...';
@@ -1076,91 +1094,88 @@ async function calculateRoute() {
     processRoutingResponse(result.data);
 
     // Actualizar estado
-    statusElement.textContent = 'Ruta calculada con éxito!';
+    statusElement.textContent = `Ruta calculada: ${(routedTrack.distance / 1000).toFixed(2)} km, ${routedTrack.points.length} puntos. Se exportará al GPX.`;
   } catch (error) {
     console.error('Error al calcular la ruta:', error);
     statusElement.textContent = `Error: ${error.message}`;
   }
 }
 
+// Número máximo de puntos que acepta la API de directions de OpenRouteService
+const MAX_ROUTING_POINTS = 50;
+
 // Función para procesar la respuesta de enrutamiento
 function processRoutingResponse(data) {
   // Verificar que tenemos una respuesta válida
-  if (!data || !data.features || data.features.length === 0) {
+  const route = data && data.features && data.features[0];
+  if (!route || !route.geometry || route.geometry.type !== 'LineString') {
     throw new Error('La respuesta de la API no contiene datos de ruta válidos');
   }
 
-  // Limpiar waypoints existentes (excepto el primero y el último)
-  clearIntermediateWaypoints();
-
-  // Obtener la geometría de la ruta
-  const route = data.features[0];
-
-  // Añadir la ruta al mapa
+  // Añadir la ruta al mapa. Los puntos marcados se mantienen como puntos de paso
   L.geoJSON(route, {
     style: {
       color: '#3388ff',
       weight: 6,
-      opacity: 0.7,
+      opacity: 0.8,
     },
   }).addTo(routingLayer);
 
-  // Extraer las coordenadas de la ruta
-  let routeCoordinates = [];
+  // Guardar la geometría completa ([lng, lat, elevación]) para exportarla como track
+  routedTrack = {
+    points: route.geometry.coordinates.map(([lng, lat, elevation]) => ({
+      lat,
+      lng,
+      elevation: Number.isFinite(elevation) ? elevation : null,
+    })),
+    distance: route.properties?.summary?.distance ?? calculateTotalDistance(),
+  };
+  fillElevationGaps(routedTrack.points);
 
-  if (route.geometry.type === 'LineString') {
-    routeCoordinates = route.geometry.coordinates.map(coord => [coord[1], coord[0]]);
-  }
-
-  // Crear nuevos waypoints a lo largo de la ruta
-  const numWaypoints = Math.min(20, routeCoordinates.length); // Limitar el número de waypoints
-  const step = Math.floor(routeCoordinates.length / numWaypoints);
-
-  // Guardar los puntos originales (inicio y fin)
-  const startPoint = waypoints[0];
-  const endPoint = waypoints[waypoints.length - 1];
-
-  // Limpiar los marcadores y waypoints actuales
-  markers.forEach(marker => map.removeLayer(marker));
-  markers = [];
-  waypoints = [];
-
-  // Añadir el punto de inicio
-  addWaypoint(startPoint.lat, startPoint.lng, startPoint.elevation);
-
-  // Añadir puntos intermedios
-  for (let i = step; i < routeCoordinates.length - step; i += step) {
-    const [lat, lng] = routeCoordinates[i];
-    addWaypoint(lat, lng, 0); // Elevación se puede obtener de un servicio de elevación
-  }
-
-  // Añadir el punto final
-  addWaypoint(endPoint.lat, endPoint.lng, endPoint.elevation);
-
-  // Actualizar la línea de la ruta y las estadísticas
-  updateRoutePolyline();
+  // La línea recta entre puntos pasa a ser una guía discontinua
+  routePolyline.setStyle({ dashArray: '6 8', opacity: 0.5 });
+  updateRouteStats();
 }
 
-// Función para limpiar los waypoints intermedios
-function clearIntermediateWaypoints() {
-  if (waypoints.length <= 2) return; // No hay intermedios que limpiar
+// OpenRouteService devuelve altitud 0 donde no tiene datos: los tramos a 0 entre dos puntos claramente
+// por encima del nivel del mar (> 20 m) se rellenan interpolando para no crear caídas falsas en el perfil
+function fillElevationGaps(points) {
+  let i = 0;
+  while (i < points.length) {
+    if (points[i].elevation !== 0) {
+      i++;
+      continue;
+    }
 
-  // Conservar solo el primero y el último
-  const startPoint = waypoints[0];
-  const endPoint = waypoints[waypoints.length - 1];
+    let end = i;
+    while (end < points.length && points[end].elevation === 0) end++;
 
-  // Eliminar marcadores intermedios
-  for (let i = 1; i < markers.length - 1; i++) {
-    map.removeLayer(markers[i]);
+    const before = points[i - 1];
+    const after = points[end];
+    if (before && after && before.elevation > 20 && after.elevation > 20) {
+      const steps = end - i + 1;
+      for (let k = i; k < end; k++) {
+        const t = (k - i + 1) / steps;
+        points[k].elevation = Math.round((before.elevation + (after.elevation - before.elevation) * t) * 10) / 10;
+      }
+    }
+    i = end;
   }
+}
 
-  // Reiniciar arrays conservando inicio y fin
-  markers = [markers[0], markers[markers.length - 1]];
-  waypoints = [startPoint, endPoint];
+// Descartar la ruta calculada (al cambiar los puntos o limpiar la ruta)
+function discardRoutedTrack() {
+  const hadRoute = routedTrack !== null;
 
-  // Actualizar la línea y la lista
-  updateRoutePolyline();
-  updateWaypointsList();
+  routedTrack = null;
+  routingLayer.clearLayers();
+  routePolyline.setStyle({ dashArray: null, opacity: 0.7 });
+
+  if (hadRoute) {
+    document.getElementById('routing-status').textContent =
+      'Los puntos han cambiado: vuelve a calcular la ruta para exportarla siguiendo las carreteras.';
+    updateRouteStats();
+  }
 }
 
 // Clase personalizada para manejo offline con Electron

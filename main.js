@@ -171,8 +171,8 @@ ipcMain.handle('fetch-route', async (event, requestData) => {
       signal: AbortSignal.timeout(30000),
       body: JSON.stringify({
         coordinates: coordinates,
-        profile: profile,
-        format: 'geojson',
+        elevation: true, // Altitud de cada punto de la ruta para el GPX
+        instructions: false,
       }),
     });
 
@@ -307,7 +307,8 @@ function buildGPXContent(routeData) {
           trkpt: waypoints.map(wp => ({
             '@_lat': wp.lat,
             '@_lon': wp.lng,
-            ele: wp.elevation || 0,
+            // <ele> es opcional: solo se escribe si se conoce la altitud
+            ele: Number.isFinite(wp.elevation) ? wp.elevation : undefined,
             time: wp.time || new Date().toISOString(),
           })),
         },
