@@ -688,57 +688,53 @@ function calculateTotalDistance() {
   return totalDistance;
 }
 
-// Verificar el almacenamiento offline
+// Mostrar cuántas teselas hay guardadas para uso offline (se llama al arrancar y tras cada descarga)
 async function checkOfflineStorage() {
   try {
     const storageStat = await showOfflineStorageStatus();
-    if (storageStat && storageStat.tileCount > 0) {
-      // Hay mapas disponibles offline
-      const offlineInfo = document.createElement('div');
+    let offlineInfo = document.getElementById('offline-storage-info');
+
+    if (!storageStat) {
+      if (offlineInfo) offlineInfo.remove();
+      return;
+    }
+
+    if (!offlineInfo) {
+      offlineInfo = document.createElement('p');
+      offlineInfo.id = 'offline-storage-info';
       offlineInfo.className = 'info-text';
-      offlineInfo.innerHTML = `
-        <p>Tienes ${storageStat.tileCount} teselas guardadas para uso offline 
-        (aproximadamente ${storageStat.size} MB).</p>
-      `;
 
       // Insertarlo antes del botón de guardar offline
       const offlineActions = document.querySelector('.offline-actions');
       offlineActions.insertBefore(offlineInfo, document.getElementById('save-offline').parentNode);
     }
+
+    offlineInfo.textContent = `Tienes ${storageStat.tileCount} teselas guardadas para uso offline (${storageStat.size} MB).`;
   } catch (error) {
     console.error('Error verificando almacenamiento offline:', error);
   }
 }
 
-// Actualizar la versión de showOfflineStorageStatus para retornar datos útiles
+// Contar las teselas guardadas y su tamaño (en el almacén de teselas, no en el de localForage por defecto)
 async function showOfflineStorageStatus() {
   try {
-    // Intentar acceder al almacenamiento offline
-    const allKeys = await localforage.keys();
+    let tileCount = 0;
+    let bytes = 0;
 
-    if (!allKeys || allKeys.length === 0) {
-      console.log('No hay teselas guardadas');
-      return null;
-    }
-
-    // Filtrar solo las claves de teselas
-    const tileKeys = allKeys.filter(key => key.startsWith('https://'));
-    const tileCount = tileKeys.length;
+    await tileLayerOffline._storage.iterate(value => {
+      tileCount++;
+      // Las teselas se guardan en base64: 4 caracteres por cada 3 bytes
+      bytes += typeof value === 'string' ? (value.length * 3) / 4 : 0;
+    });
 
     if (tileCount === 0) {
       console.log('No hay teselas guardadas');
       return null;
     }
 
-    console.log('Teselas guardadas:', tileCount);
-
-    // Calcular el espacio aproximado (cada tesela ~20KB en promedio)
-    const approxSize = (tileCount * 20) / 1024; // En MB
-    console.log('Espacio aproximado:', approxSize.toFixed(2), 'MB');
-
     return {
       tileCount: tileCount,
-      size: approxSize.toFixed(2),
+      size: (bytes / 1024 / 1024).toFixed(2),
     };
   } catch (error) {
     console.error('Error al verificar el almacenamiento:', error);
@@ -1277,7 +1273,7 @@ class ElectronOfflineTileLayer extends L.TileLayer {
   // Método para descargar una tesela individual
   async _downloadTile(coords) {
     try {
-      const url = this.getTileUrl(coords);
+      const url = this._getDownloadUrl(coords);
       const key = this._getTileKey(coords);
 
       // Usar IPC para descargar la tesela
@@ -1307,16 +1303,22 @@ class ElectronOfflineTileLayer extends L.TileLayer {
   _calculateTilesToFetch(minZoom, maxZoom, bounds) {
     const tiles = [];
 
+    // La capa offline solo está en el mapa en modo offline: se proyecta con el CRS del mapa
+    // (this._map no existe mientras la capa no se ha añadido)
+    const crs = map.options.crs;
+    const tileSize = this.getTileSize();
+
     // Para cada nivel de zoom
     for (let z = minZoom; z <= maxZoom; z++) {
-      const northEast = this._map.project(bounds.getNorthEast(), z);
-      const southWest = this._map.project(bounds.getSouthWest(), z);
+      const northEast = crs.latLngToPoint(bounds.getNorthEast(), z);
+      const southWest = crs.latLngToPoint(bounds.getSouthWest(), z);
+      const lastIndex = Math.pow(2, z) - 1;
 
-      // Calcular los índices de las teselas
-      const minX = Math.floor(southWest.x / this.getTileSize().x);
-      const maxX = Math.floor(northEast.x / this.getTileSize().x);
-      const minY = Math.floor(northEast.y / this.getTileSize().y);
-      const maxY = Math.floor(southWest.y / this.getTileSize().y);
+      // Calcular los índices de las teselas (sin salirse del mundo)
+      const minX = Math.max(0, Math.floor(southWest.x / tileSize.x));
+      const maxX = Math.min(lastIndex, Math.floor(northEast.x / tileSize.x));
+      const minY = Math.max(0, Math.floor(northEast.y / tileSize.y));
+      const maxY = Math.min(lastIndex, Math.floor(southWest.y / tileSize.y));
 
       // Añadir todas las teselas en el área
       for (let x = minX; x <= maxX; x++) {
@@ -1327,6 +1329,24 @@ class ElectronOfflineTileLayer extends L.TileLayer {
     }
 
     return tiles;
+  }
+
+  // URL de una tesela concreta. getTileUrl() de Leaflet usa el zoom actual del mapa en lugar de coords.z,
+  // así que para descargar varios niveles de zoom se construye a partir de la plantilla
+  _getDownloadUrl(coords) {
+    const subdomains = this.options.subdomains;
+    return L.Util.template(this._url, {
+      ...this.options,
+      s: subdomains[Math.abs(coords.x + coords.y) % subdomains.length],
+      x: coords.x,
+      y: coords.y,
+      z: coords.z,
+    });
+  }
+
+  // Número de teselas que ocupa un área entre dos niveles de zoom
+  countTiles(minZoom, maxZoom, bounds) {
+    return this._calculateTilesToFetch(minZoom, maxZoom, bounds).length;
   }
 
   // Método para generar una clave única para cada tesela
@@ -1386,6 +1406,7 @@ function setupOfflineSupport() {
 
   tileLayerOffline.on('offline:save-end', function () {
     document.getElementById('offline-status').textContent = '¡Guardado completo!';
+    checkOfflineStorage();
     setTimeout(function () {
       document.querySelector('.progress-container').style.display = 'none';
     }, 2000);
@@ -1408,15 +1429,17 @@ function saveOfflineMap() {
     return;
   }
 
-  if (maxZoom - minZoom > 5) {
-    const confirmMessage = `Estás a punto de descargar ${maxZoom - minZoom + 1} niveles de zoom, lo que puede requerir mucho espacio. ¿Quieres continuar?`;
+  // Obtener los límites actuales del mapa
+  const bounds = map.getBounds();
+
+  // Avisar antes de descargas grandes (servidores de teselas comunitarios: descargar solo lo necesario)
+  const tileCount = tileLayerOffline.countTiles(minZoom, maxZoom, bounds);
+  if (tileCount > 500) {
+    const confirmMessage = `Vas a descargar ${tileCount} teselas (unos ${Math.ceil((tileCount * 20) / 1024)} MB). Acerca el mapa o baja el zoom máximo para descargar menos. ¿Quieres continuar?`;
     if (!confirm(confirmMessage)) {
       return;
     }
   }
-
-  // Obtener los límites actuales del mapa
-  const bounds = map.getBounds();
 
   // Iniciar la descarga
   tileLayerOffline.saveTiles(minZoom, maxZoom, bounds, function (error, tilesForSave) {
@@ -1437,16 +1460,10 @@ function toggleOfflineMode() {
   if (isOfflineMode) {
     // Cambiar a modo online
     button.textContent = 'Activar modo offline';
-
-    // Restaurar la capa original
-    if (currentBaseLayer) {
-      map.removeLayer(currentBaseLayer);
-    }
-
-    // Volver a añadir la capa online
-    updateMapLayer(document.getElementById('route-type').value);
-
     isOfflineMode = false;
+
+    // Volver a la capa online del tipo de ruta (updateMapLayer quita la capa offline)
+    updateMapLayer(document.getElementById('route-type').value);
   } else {
     // Cambiar a modo offline
     button.textContent = 'Desactivar modo offline';
@@ -1456,11 +1473,12 @@ function toggleOfflineMode() {
       map.removeLayer(currentBaseLayer);
     }
 
+    // Activar el modo antes de añadir la capa: createTile lo consulta al crear las primeras teselas
+    isOfflineMode = true;
+
     // Añadir la capa offline
     tileLayerOffline.addTo(map);
     currentBaseLayer = tileLayerOffline;
-
-    isOfflineMode = true;
   }
 }
 
