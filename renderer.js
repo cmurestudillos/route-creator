@@ -219,7 +219,8 @@ function onMapClick(e) {
 }
 
 // Función para añadir un punto a la ruta
-function addWaypoint(lat, lng, elevation = 0) {
+// Con deferUpdate no se refrescan la línea ni la lista (importaciones grandes: se refrescan una vez al final)
+function addWaypoint(lat, lng, elevation = 0, { deferUpdate = false } = {}) {
   // Crear un marcador en el mapa
   const marker = L.marker([lat, lng], {
     draggable: true, // Permite arrastrar el marcador
@@ -238,11 +239,13 @@ function addWaypoint(lat, lng, elevation = 0) {
   markers.push(marker);
   waypoints.push(waypoint);
 
-  // Actualizar la línea de la ruta
-  updateRoutePolyline();
+  if (!deferUpdate) {
+    // Actualizar la línea de la ruta
+    updateRoutePolyline();
 
-  // Actualizar la lista de waypoints en la interfaz
-  updateWaypointsList();
+    // Actualizar la lista de waypoints en la interfaz
+    updateWaypointsList();
+  }
 
   // Popup con información del punto y botón para eliminarlo
   marker.bindPopup(() => createWaypointPopupContent(marker));
@@ -307,7 +310,7 @@ function removeWaypointByMarker(marker) {
 }
 
 // Función para añadir un punto de interés (POI)
-function addPOI(lat, lng, type) {
+function addPOI(lat, lng, type, description) {
   // Verificar si el tipo es válido
   if (!poiIcons[type]) {
     type = 'parking'; // Tipo por defecto
@@ -325,7 +328,7 @@ function addPOI(lat, lng, type) {
     lat: lat,
     lng: lng,
     type: type,
-    description: getPoiDescription(type),
+    description: description || getPoiDescription(type),
     time: new Date().toISOString(),
   };
 
@@ -377,7 +380,7 @@ function createPOIPopupContent(marker) {
 
   const container = document.createElement('div');
   container.innerHTML = `
-    <strong>${poi.description}</strong><br>
+    <strong>${escapeHtml(poi.description)}</strong><br>
     Lat: ${poi.lat.toFixed(5)}, Lng: ${poi.lng.toFixed(5)}<br>
     <button type="button" class="delete-point-btn">Eliminar punto</button>
   `;
@@ -396,6 +399,14 @@ function removePOIByMarker(marker) {
   if (index !== -1) {
     removePOI(index);
   }
+}
+
+// Escapar texto que viene de archivos importados antes de insertarlo como HTML
+function escapeHtml(text) {
+  return String(text).replace(
+    /[&<>"']/g,
+    char => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[char]
+  );
 }
 
 // Obtener descripción para un tipo de POI
@@ -466,7 +477,7 @@ function updatePOIsList() {
     poiItem.className = 'poi-item';
     poiItem.setAttribute('data-type', poi.type); // Añadir el atributo data-type para estilos CSS
     poiItem.innerHTML = `
-      <span>${poi.description}: ${poi.lat.toFixed(5)}, ${poi.lng.toFixed(5)}</span>
+      <span>${escapeHtml(poi.description)}: ${poi.lat.toFixed(5)}, ${poi.lng.toFixed(5)}</span>
       <button data-index="${index}" class="remove-poi">X</button>
     `;
     container.appendChild(poiItem);
@@ -552,22 +563,7 @@ function setupEventListeners() {
 
   // Selector de tipo de ruta - cambiar capa del mapa y opciones al cambiar
   document.getElementById('route-type').addEventListener('change', function () {
-    const routeType = this.value;
-    updateMapLayer(routeType);
-    updateRouteOptions(routeType);
-
-    // Mostrar u ocultar el contenedor de modos de edición según el tipo de ruta
-    const editModeContainer = document.getElementById('edit-mode-container');
-    if (routeType === 'Motorhome') {
-      editModeContainer.style.display = 'block';
-    } else {
-      editModeContainer.style.display = 'none';
-      // Si cambiamos a otro tipo de ruta, volver al modo de ruta
-      setEditMode('route');
-    }
-
-    // Actualizar el perfil de enrutamiento
-    updateRoutingProfile(routeType);
+    applyRouteType(this.value);
   });
 
   // Botones de modo de edición
@@ -618,6 +614,25 @@ function setupEventListeners() {
   // Controles de zoom offline
   document.getElementById('offline-zoom-min').addEventListener('change', updateZoomLevels);
   document.getElementById('offline-zoom-max').addEventListener('change', updateZoomLevels);
+}
+
+// Aplicar un tipo de ruta a toda la interfaz: capa del mapa, opciones, modos de edición y perfil
+function applyRouteType(routeType) {
+  updateMapLayer(routeType);
+  updateRouteOptions(routeType);
+
+  // Mostrar u ocultar el contenedor de modos de edición según el tipo de ruta
+  const editModeContainer = document.getElementById('edit-mode-container');
+  if (routeType === 'Motorhome') {
+    editModeContainer.style.display = 'block';
+  } else {
+    editModeContainer.style.display = 'none';
+    // Si cambiamos a otro tipo de ruta, volver al modo de ruta
+    setEditMode('route');
+  }
+
+  // Actualizar el perfil de enrutamiento
+  updateRoutingProfile(routeType);
 }
 
 // Función para cambiar el modo de edición
@@ -820,16 +835,21 @@ async function importGPX() {
       return;
     }
 
-    // Limpiar la ruta actual antes de importar una nueva
-    clearRoute();
-
-    // Analizar el contenido GPX
+    // Analizar el contenido GPX antes de tocar la ruta actual
     const gpxData = parseGPXContent(result.content);
 
     if (!gpxData) {
-      alert('El archivo GPX no es válido o está corrupto.');
+      alert('El archivo no es un GPX válido o está corrupto.');
       return;
     }
+
+    if (gpxData.waypoints.length === 0 && gpxData.pois.length === 0) {
+      alert('El archivo GPX no contiene puntos de track, de ruta ni de interés.');
+      return;
+    }
+
+    // Limpiar la ruta actual antes de cargar la nueva
+    clearRoute();
 
     // Actualizar el nombre y tipo de ruta
     if (gpxData.name) {
@@ -838,37 +858,35 @@ async function importGPX() {
 
     if (gpxData.type) {
       const routeTypeSelect = document.getElementById('route-type');
-      // Verificar si el tipo existe en el select
-      for (let i = 0; i < routeTypeSelect.options.length; i++) {
-        if (routeTypeSelect.options[i].value.toLowerCase() === gpxData.type.toLowerCase()) {
-          routeTypeSelect.selectedIndex = i;
-          break;
-        }
-      }
+      const option = [...routeTypeSelect.options].find(o => o.value.toLowerCase() === gpxData.type.toLowerCase());
 
-      // Actualizar capa del mapa y opciones
-      updateMapLayer(routeTypeSelect.value);
-      updateRouteOptions(routeTypeSelect.value);
+      // Aplicar el tipo a toda la interfaz (capa, opciones, modos de edición y perfil de enrutamiento)
+      if (option) {
+        routeTypeSelect.value = option.value;
+        applyRouteType(option.value);
+      }
     }
 
     // Cargar los waypoints de la ruta
     if (gpxData.waypoints && gpxData.waypoints.length > 0) {
       gpxData.waypoints.forEach(wp => {
-        addWaypoint(wp.lat, wp.lng, wp.elevation);
+        addWaypoint(wp.lat, wp.lng, wp.elevation, { deferUpdate: true });
       });
+      updateRoutePolyline();
+      updateWaypointsList();
     }
 
     // Cargar los puntos de interés
     if (gpxData.pois && gpxData.pois.length > 0) {
       gpxData.pois.forEach(poi => {
-        addPOI(poi.lat, poi.lng, poi.type || 'parking');
+        addPOI(poi.lat, poi.lng, poi.type || 'parking', poi.name);
       });
     }
 
-    // Centrar el mapa si hay puntos
-    if (waypoints.length > 0) {
-      const bounds = L.latLngBounds(waypoints.map(wp => [wp.lat, wp.lng]));
-      map.fitBounds(bounds, { padding: [50, 50] });
+    // Centrar el mapa en los puntos importados (track y POIs)
+    const importedPoints = [...waypoints, ...pois].map(p => [p.lat, p.lng]);
+    if (importedPoints.length > 0) {
+      map.fitBounds(L.latLngBounds(importedPoints), { padding: [50, 50], maxZoom: 16 });
     }
 
     alert(`Archivo GPX importado correctamente: ${result.filePath}`);
@@ -885,6 +903,11 @@ function parseGPXContent(gpxContent) {
     const parser = new DOMParser();
     const xmlDoc = parser.parseFromString(gpxContent, 'text/xml');
 
+    // DOMParser no lanza excepciones: indica los errores con un elemento <parsererror>
+    if (xmlDoc.querySelector('parsererror') || xmlDoc.documentElement.localName !== 'gpx') {
+      return null;
+    }
+
     // Objeto para almacenar los datos extraídos
     const gpxData = {
       name: '',
@@ -899,18 +922,21 @@ function parseGPXContent(gpxContent) {
       gpxData.name = metadataName.textContent;
     }
 
-    const trkName = xmlDoc.querySelector('trk > name');
+    const trkName = xmlDoc.querySelector('trk > name, rte > name');
     if (trkName && !gpxData.name) {
       gpxData.name = trkName.textContent;
     }
 
-    const trkType = xmlDoc.querySelector('trk > type');
+    const trkType = xmlDoc.querySelector('trk > type, rte > type');
     if (trkType) {
       gpxData.type = trkType.textContent;
     }
 
-    // Extraer waypoints de la ruta (puntos de track)
-    const trkpts = xmlDoc.querySelectorAll('trkpt');
+    // Extraer waypoints de la ruta: puntos de track (<trkpt>) o, si no hay, puntos de ruta (<rtept>)
+    let trkpts = xmlDoc.querySelectorAll('trkpt');
+    if (trkpts.length === 0) {
+      trkpts = xmlDoc.querySelectorAll('rtept');
+    }
     trkpts.forEach(trkpt => {
       const lat = parseFloat(trkpt.getAttribute('lat'));
       const lng = parseFloat(trkpt.getAttribute('lon'));
@@ -961,10 +987,14 @@ function parseGPXContent(gpxContent) {
           }
         }
 
+        // Conservar el nombre del punto si lo tiene
+        const nameElement = wpt.querySelector('name');
+
         gpxData.pois.push({
           lat,
           lng,
           type: poiType,
+          name: nameElement ? nameElement.textContent.trim() : '',
         });
       }
     });
