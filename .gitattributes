@@ -4,6 +4,7 @@
 
 # Binarios: nunca se tocan
 *.png binary
+*.jpg binary
 *.ico binary
 *.icns binary
 *.dmg binary

@@ -40,6 +40,18 @@ export default [
     },
   },
 
+  // Landing (GitHub Pages): script de navegador sin dependencias
+  {
+    files: ['docs/**/*.js'],
+    languageOptions: {
+      ecmaVersion: 2022,
+      sourceType: 'script',
+      globals: {
+        ...globals.browser,
+      },
+    },
+  },
+
   // Reglas personalizadas aplicadas a todos los archivos JS
   {
     files: ['**/*.js'],
