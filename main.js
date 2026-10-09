@@ -222,6 +222,9 @@ ipcMain.handle('download-tile', async (event, tileUrl) => {
   }
 });
 
+// Espacio de nombres de las extensiones propias del GPX
+const ROUTE_CREATOR_NS = 'https://github.com/cmurestudillos/route-creator';
+
 // Función para construir el contenido GPX
 function buildGPXContent(routeData) {
   const { name, type, waypoints, pois, metadata, stats } = routeData;
@@ -254,6 +257,21 @@ function buildGPXContent(routeData) {
     extendedDesc += `. Puntos de interés: ${pois.length}`;
   }
 
+  // Puntos de interés como waypoints (<wpt>). El esquema GPX 1.1 fija el orden de los
+  // elementos: en <gpx> metadata → wpt → trk, y en <wpt> time → name → desc → sym → type
+  const wpt =
+    pois && pois.length > 0
+      ? pois.map(poi => ({
+          '@_lat': poi.lat,
+          '@_lon': poi.lng,
+          time: poi.time || new Date().toISOString(),
+          name: poi.description,
+          desc: `${poi.description} - ${poi.type}`,
+          sym: mapPoiTypeToGarminSymbol(poi.type), // Símbolo Garmin compatible
+          type: poi.type,
+        }))
+      : undefined;
+
   // Objeto base GPX
   const gpxObj = {
     '?xml': { '@_version': '1.0', '@_encoding': 'UTF-8' },
@@ -262,23 +280,26 @@ function buildGPXContent(routeData) {
       '@_creator': 'RouteCreator App',
       '@_xmlns': 'http://www.topografix.com/GPX/1/1',
       '@_xmlns:xsi': 'http://www.w3.org/2001/XMLSchema-instance',
+      '@_xmlns:rc': ROUTE_CREATOR_NS,
       '@_xsi:schemaLocation': 'http://www.topografix.com/GPX/1/1 http://www.topografix.com/GPX/1/1/gpx.xsd',
       metadata: {
         name: name,
         desc: extendedDesc,
         time: new Date().toISOString(),
         keywords: type, // Útil para búsquedas
+        // Las extensiones de GPX deben ir en un espacio de nombres propio
         extensions: metadata
           ? {
-              route_metadata: {
+              'rc:route_metadata': prefixKeys('rc:', {
                 type: type,
                 ...metadata,
                 total_distance_meters: stats?.totalDistance || 0,
                 poi_count: stats?.poiCount || 0,
-              },
+              }),
             }
           : undefined,
       },
+      wpt,
       trk: {
         name: name,
         type: type,
@@ -294,19 +315,6 @@ function buildGPXContent(routeData) {
     },
   };
 
-  // Añadir puntos de interés como waypoints en el GPX
-  if (pois && pois.length > 0) {
-    gpxObj.gpx.wpt = pois.map(poi => ({
-      '@_lat': poi.lat,
-      '@_lon': poi.lng,
-      name: poi.description,
-      desc: `${poi.description} - ${poi.type}`,
-      sym: mapPoiTypeToGarminSymbol(poi.type), // Símbolo Garmin compatible
-      type: poi.type,
-      time: poi.time || new Date().toISOString(),
-    }));
-  }
-
   // Opciones para la conversión a XML
   const options = {
     ignoreAttributes: false,
@@ -316,6 +324,11 @@ function buildGPXContent(routeData) {
 
   const builder = new XMLBuilder(options);
   return builder.build(gpxObj);
+}
+
+// Añade un prefijo de espacio de nombres a las claves de un objeto
+function prefixKeys(prefix, obj) {
+  return Object.fromEntries(Object.entries(obj).map(([key, value]) => [prefix + key, value]));
 }
 
 // Función para mapear tipos de POI a símbolos compatibles con Garmin
