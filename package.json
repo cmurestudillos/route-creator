@@ -43,6 +43,12 @@
     "directories": {
       "output": "release/"
     },
+    "files": [
+      "**/*",
+      "!docs{,/**/*}",
+      "!config.json",
+      "!config.example.json"
+    ],
     "mac": {
       "category": "public.app-category.developer-tools",
       "icon": "assets/icon.icns"

@@ -13,7 +13,7 @@ let pendingPoiReturnMode = null; // Modo al que volver tras colocar un POI con e
 // Variables para el enrutamiento
 let routingLayer; // Capa para mostrar la ruta calculada
 let routedTrack = null; // Ruta calculada por OpenRouteService: { points: [{ lat, lng, elevation }], distance }
-let OPENROUTE_API_KEY = ''; // Se carga desde config.json en DOMContentLoaded
+let apiKeySource = null; // Origen de la API key de OpenRouteService: 'settings', 'config' o null (sin clave)
 
 // Variables para el soporte offline
 let isOfflineMode = false;
@@ -79,13 +79,15 @@ const poiIcons = {
 
 // Inicialización principal de la aplicación
 document.addEventListener('DOMContentLoaded', async function () {
-  // Cargar configuración (API keys, etc.) desde el proceso principal
+  // Cargar configuración desde el proceso principal (la API key no sale de él: solo si hay una)
   try {
     const config = await window.electron.ipcRenderer.invoke('get-config');
-    OPENROUTE_API_KEY = config.openRouteServiceApiKey || '';
+    apiKeySource = config.apiKeySource;
+    document.getElementById('app-version').textContent = `v${config.version}`;
   } catch (error) {
     console.error('No se pudo cargar la configuración:', error);
   }
+  updateApiKeyStatus();
 
   // Inicializar el mapa
   initMap();
@@ -606,6 +608,12 @@ function setupEventListeners() {
     calculateRoute();
   });
 
+  // Guardar la API key de OpenRouteService
+  document.getElementById('save-api-key').addEventListener('click', saveApiKey);
+  document.getElementById('ors-api-key').addEventListener('keydown', function (e) {
+    if (e.key === 'Enter') saveApiKey();
+  });
+
   // Botones para soporte offline
   document.getElementById('save-offline').addEventListener('click', function () {
     saveOfflineMap();
@@ -1054,6 +1062,13 @@ function updateRoutingProfile(routeType) {
 async function calculateRoute() {
   const statusElement = document.getElementById('routing-status');
 
+  // Sin API key no se puede calcular
+  if (!apiKeySource) {
+    statusElement.textContent = 'Falta la API key de OpenRouteService: pégala arriba y pulsa "Guardar API key".';
+    document.getElementById('ors-api-key').focus();
+    return;
+  }
+
   // Verificar que hay al menos 2 puntos
   if (waypoints.length < 2) {
     statusElement.textContent = 'Necesitas al menos 2 puntos para calcular una ruta.';
@@ -1079,11 +1094,10 @@ async function calculateRoute() {
     // Preparar los puntos para la API (en formato [lng, lat])
     const coordinates = waypoints.map(wp => [wp.lng, wp.lat]);
 
-    // Llamar al proceso principal para realizar la solicitud
+    // Llamar al proceso principal para realizar la solicitud (añade la API key guardada)
     const result = await window.electron.ipcRenderer.invoke('fetch-route', {
       profile: profile,
       coordinates: coordinates,
-      apiKey: OPENROUTE_API_KEY,
     });
 
     if (!result.success) {
@@ -1098,6 +1112,50 @@ async function calculateRoute() {
   } catch (error) {
     console.error('Error al calcular la ruta:', error);
     statusElement.textContent = `Error: ${error.message}`;
+  }
+}
+
+// Mostrar si hay API key de OpenRouteService y de dónde sale
+function updateApiKeyStatus() {
+  const status = document.getElementById('api-key-status');
+  const input = document.getElementById('ors-api-key');
+
+  if (apiKeySource === 'settings') {
+    status.textContent =
+      'API key guardada. Para cambiarla, pega otra y guárdala; para borrarla, guarda el campo vacío.';
+    input.placeholder = '•••••••• (guardada)';
+  } else if (apiKeySource === 'config') {
+    status.textContent = 'Usando la API key de config.json (desarrollo).';
+    input.placeholder = 'Pega aquí tu API key';
+  } else {
+    status.textContent = 'Necesitas una API key gratuita de OpenRouteService para calcular rutas.';
+    input.placeholder = 'Pega aquí tu API key';
+  }
+}
+
+// Guardar (o borrar si el campo está vacío) la API key en la configuración de la app
+async function saveApiKey() {
+  const input = document.getElementById('ors-api-key');
+  const status = document.getElementById('api-key-status');
+
+  try {
+    const result = await window.electron.ipcRenderer.invoke('set-api-key', input.value);
+    if (!result.success) {
+      status.textContent = `No se pudo guardar: ${result.error}`;
+      return;
+    }
+
+    apiKeySource = result.apiKeySource;
+    input.value = '';
+    updateApiKeyStatus();
+
+    // Quitar el aviso de "falta la API key" del enrutamiento si lo había
+    const routingStatus = document.getElementById('routing-status');
+    if (apiKeySource && routingStatus.textContent.startsWith('Falta la API key')) {
+      routingStatus.textContent = 'API key guardada: ya puedes calcular la ruta.';
+    }
+  } catch (error) {
+    status.textContent = `No se pudo guardar: ${error.message}`;
   }
 }
 

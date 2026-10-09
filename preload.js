@@ -1,7 +1,7 @@
 const { contextBridge, ipcRenderer } = require('electron');
 
 // Lista blanca de canales IPC permitidos
-const VALID_CHANNELS = ['save-gpx', 'import-gpx', 'fetch-route', 'download-tile', 'get-config'];
+const VALID_CHANNELS = ['save-gpx', 'import-gpx', 'fetch-route', 'download-tile', 'get-config', 'set-api-key'];
 
 contextBridge.exposeInMainWorld('electron', {
   ipcRenderer: {

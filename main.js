@@ -3,16 +3,36 @@ const path = require('path');
 const fs = require('fs');
 const { XMLBuilder } = require('fast-xml-parser');
 
-// Cargar configuración desde config.json (gitignored) con fallback a config.example.json
-let appConfig = {};
-try {
-  appConfig = JSON.parse(fs.readFileSync(path.join(__dirname, 'config.json'), 'utf8'));
-} catch {
+// API key de OpenRouteService. Se guarda desde la app en <userData>/settings.json; en desarrollo
+// se puede usar config.json (gitignored y excluido del instalador, ver config.example.json)
+const PLACEHOLDER_API_KEY = 'YOUR_OPENROUTESERVICE_API_KEY_HERE';
+
+function settingsPath() {
+  return path.join(app.getPath('userData'), 'settings.json');
+}
+
+function readJson(filePath) {
   try {
-    appConfig = JSON.parse(fs.readFileSync(path.join(__dirname, 'config.example.json'), 'utf8'));
+    return JSON.parse(fs.readFileSync(filePath, 'utf8'));
   } catch {
-    appConfig = { openRouteServiceApiKey: '' };
+    return {};
   }
+}
+
+function cleanApiKey(value) {
+  const key = typeof value === 'string' ? value.trim() : '';
+  return key === PLACEHOLDER_API_KEY ? '' : key;
+}
+
+// Devuelve la clave y de dónde sale: 'settings' (guardada en la app), 'config' (config.json) o null
+function getApiKey() {
+  const saved = cleanApiKey(readJson(settingsPath()).openRouteServiceApiKey);
+  if (saved) return { key: saved, source: 'settings' };
+
+  const dev = cleanApiKey(readJson(path.join(__dirname, 'config.json')).openRouteServiceApiKey);
+  if (dev) return { key: dev, source: 'config' };
+
+  return { key: '', source: null };
 }
 
 // User-Agent identificable: la política de uso de teselas de OpenStreetMap lo exige
@@ -26,7 +46,7 @@ function createWindow() {
   mainWindow = new BrowserWindow({
     width: 1200,
     height: 800,
-    title: 'RouteCreator - Creador de Rutas GPX',
+    title: 'Route Creator - Creador de Rutas GPX',
     webPreferences: {
       nodeIntegration: false,
       contextIsolation: true,
@@ -73,10 +93,35 @@ app.on('window-all-closed', function () {
   if (process.platform !== 'darwin') app.quit();
 });
 
-// Exponer configuración al renderer de forma segura (solo campos permitidos)
+// Exponer configuración al renderer. La API key no sale del proceso principal: solo si hay una y su origen
 ipcMain.handle('get-config', () => ({
-  openRouteServiceApiKey: appConfig.openRouteServiceApiKey || '',
+  apiKeySource: getApiKey().source,
+  version: app.getVersion(),
 }));
+
+// Guardar (o borrar, con una cadena vacía) la API key de OpenRouteService
+ipcMain.handle('set-api-key', (event, value) => {
+  try {
+    const key = cleanApiKey(value);
+    if (key.length > 200 || /\s/.test(key)) {
+      return { success: false, error: 'La API key no tiene un formato válido' };
+    }
+
+    const settings = readJson(settingsPath());
+    if (key) {
+      settings.openRouteServiceApiKey = key;
+    } else {
+      delete settings.openRouteServiceApiKey;
+    }
+    fs.mkdirSync(path.dirname(settingsPath()), { recursive: true });
+    fs.writeFileSync(settingsPath(), JSON.stringify(settings, null, 2));
+
+    return { success: true, apiKeySource: getApiKey().source };
+  } catch (error) {
+    console.error('Error al guardar la API key:', error);
+    return { success: false, error: error.message };
+  }
+});
 
 // Manejo de eventos IPC para guardar rutas en formato GPX
 ipcMain.handle('save-gpx', async (event, routeData) => {
@@ -148,7 +193,15 @@ function isValidCoordinateList(coordinates) {
 // Manejador para solicitudes de enrutamiento desde el renderer
 ipcMain.handle('fetch-route', async (event, requestData) => {
   try {
-    const { profile, coordinates, apiKey } = requestData || {};
+    const { profile, coordinates } = requestData || {};
+    const apiKey = getApiKey().key;
+
+    if (!apiKey) {
+      return {
+        success: false,
+        error: 'Falta la API key de OpenRouteService. Pégala en "Enrutamiento automático" y pulsa Guardar.',
+      };
+    }
 
     if (!ROUTING_PROFILES.includes(profile)) {
       return { success: false, error: `Perfil de ruta no válido: ${profile}` };
@@ -178,10 +231,25 @@ ipcMain.handle('fetch-route', async (event, requestData) => {
 
     // Verificar si la respuesta es correcta
     if (!response.ok) {
+      if (response.status === 401 || response.status === 403) {
+        return {
+          success: false,
+          error: `OpenRouteService ha rechazado la API key (${response.status}). Revisa que sea correcta.`,
+        };
+      }
+
+      // La API devuelve el motivo en JSON ({ error: { message } }); si no, el texto tal cual
       const errorText = await response.text();
+      let message = errorText;
+      try {
+        const body = JSON.parse(errorText);
+        message = body.error?.message || body.error || errorText;
+      } catch {
+        // No es JSON: se muestra el texto
+      }
       return {
         success: false,
-        error: `Error en la API (${response.status}): ${errorText}`,
+        error: `Error en la API (${response.status}): ${message}`,
       };
     }
 
