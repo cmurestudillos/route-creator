@@ -1,4 +1,4 @@
-const { app, BrowserWindow, ipcMain, dialog } = require('electron');
+const { app, BrowserWindow, ipcMain, dialog, shell } = require('electron');
 const path = require('path');
 const fs = require('fs');
 const { XMLBuilder } = require('fast-xml-parser');
@@ -32,11 +32,29 @@ function createWindow() {
     },
   });
 
+  // Los enlaces externos (p. ej. la atribución del mapa) se abren en el navegador del sistema:
+  // sin esto, un clic en "Leaflet" u "OpenStreetMap" sacaba la ventana de la app sin forma de volver
+  mainWindow.webContents.setWindowOpenHandler(({ url }) => {
+    openExternalLink(url);
+    return { action: 'deny' };
+  });
+  mainWindow.webContents.on('will-navigate', (event, url) => {
+    event.preventDefault();
+    openExternalLink(url);
+  });
+
   // Cargar el archivo HTML principal
   mainWindow.loadFile('index.html');
 
   // Abrir DevTools en desarrollo para depuración
   // mainWindow.webContents.openDevTools();
+}
+
+// Abre en el navegador del sistema solo URLs http(s)
+function openExternalLink(url) {
+  if (/^https?:\/\//i.test(url)) {
+    shell.openExternal(url);
+  }
 }
 
 // Evento cuando la aplicación está lista
@@ -105,10 +123,37 @@ ipcMain.handle('import-gpx', async () => {
   }
 });
 
+// Perfiles de OpenRouteService que ofrece la interfaz
+const ROUTING_PROFILES = ['driving-car', 'driving-hgv', 'cycling-regular', 'cycling-mountain', 'foot-hiking'];
+
+// Servidores de teselas permitidos para la descarga offline
+const TILE_URL_PATTERNS = [
+  /^https:\/\/([abc]\.)?tile\.openstreetmap\.org\//,
+  /^https:\/\/([abc]\.)?tile\.openstreetmap\.fr\//,
+  /^https:\/\/server\.arcgisonline\.com\//,
+];
+
+// Lista de pares [lng, lat] numéricos (OpenRouteService admite como máximo 50 puntos)
+function isValidCoordinateList(coordinates) {
+  return (
+    Array.isArray(coordinates) &&
+    coordinates.length >= 2 &&
+    coordinates.length <= 50 &&
+    coordinates.every(c => Array.isArray(c) && c.length === 2 && c.every(Number.isFinite))
+  );
+}
+
 // Manejador para solicitudes de enrutamiento desde el renderer
 ipcMain.handle('fetch-route', async (event, requestData) => {
   try {
-    const { profile, coordinates, apiKey } = requestData;
+    const { profile, coordinates, apiKey } = requestData || {};
+
+    if (!ROUTING_PROFILES.includes(profile)) {
+      return { success: false, error: `Perfil de ruta no válido: ${profile}` };
+    }
+    if (!isValidCoordinateList(coordinates)) {
+      return { success: false, error: 'Coordenadas no válidas' };
+    }
 
     // URL de la API de OpenRouteService
     const apiUrl = `https://api.openrouteservice.org/v2/directions/${profile}/geojson`;
@@ -149,6 +194,11 @@ ipcMain.handle('fetch-route', async (event, requestData) => {
 // Manejador para solicitudes de descarga de mapas
 ipcMain.handle('download-tile', async (event, tileUrl) => {
   try {
+    // Solo se descargan teselas de los servidores de mapas que usa la app
+    if (typeof tileUrl !== 'string' || !TILE_URL_PATTERNS.some(pattern => pattern.test(tileUrl))) {
+      throw new Error('URL de tesela no permitida');
+    }
+
     const response = await fetch(tileUrl);
 
     if (!response.ok) {
