@@ -179,10 +179,12 @@ repositorio** y se carga sobre la app con `electron -r <script>.js .` desde la r
 
 Los instaladores de Windows, macOS y Linux los genera GitHub Actions (`.github/workflows/release.yml`) al subir un tag:
 
-1. Sube la versión en `package.json` (la app la muestra con `app.getVersion()`) y haz commit.
-2. Crea el tag, que debe coincidir con `package.json` (el workflow lo comprueba): `git tag -a v1.2.0 -m "v1.2.0"`.
-3. Sube la rama y el tag: `git push origin develop` y `git push origin v1.2.0`.
-4. En _Actions_ aparece **Release v1.2.0** con 4 jobs (borrador + Windows + macOS + Linux).
+1. En una rama (`chore/release-X.Y.Z`), sube la versión en `package.json` (la app la muestra con `app.getVersion()`) y
+   en `docs/index.html` (`#heroVersion` y `#releaseTag`), y abre un PR hacia `master`.
+2. Tras fusionarlo, crea el tag sobre `master`; debe coincidir con `package.json` (el workflow lo comprueba):
+   `git tag -a vX.Y.Z -m "vX.Y.Z"` y `git push origin vX.Y.Z`.
+3. GitHub Pages publica `master:/docs` al fusionar, así que conviene publicar la release cuanto antes.
+4. En _Actions_ aparece **Release vX.Y.Z** con 4 jobs (borrador + Windows + macOS + Linux).
 5. Revisa el borrador en _Releases_ (`Route-Creator-Setup-X.Y.Z.exe`, `Route-Creator-X.Y.Z-arm64.dmg`,
    `Route-Creator-X.Y.Z.AppImage`) y pulsa **Publish release**. La web pasa sola a la nueva versión.
 
