@@ -37,7 +37,7 @@ importers:
         specifier: ^9.39.4
         version: 9.39.4
       electron:
-        specifier: ^43.8.1
+        specifier: ^43.8.6
         version: 43.8.6
       electron-builder:
         specifier: ^26.8.1
