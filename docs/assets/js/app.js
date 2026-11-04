@@ -187,7 +187,7 @@
       if (!res.ok) throw new Error(`HTTP ${res.status}`);
       const data = await res.json();
 
-      const tag = data.tag_name || 'v1.2.0';
+      const tag = data.tag_name || document.getElementById('releaseTag').textContent;
       document.getElementById('releaseTag').textContent = tag;
       document.getElementById('heroVersion').textContent = tag;
 

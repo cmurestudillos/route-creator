@@ -1,6 +1,6 @@
 {
   "name": "route-creator",
-  "version": "1.2.0",
+  "version": "1.2.1",
   "description": "Aplicación para crear rutas de MTB, ciclismo en ruta y autocaravanas y exportarlas como GPX",
   "main": "main.js",
   "packageManager": "pnpm@11.1.2",
