@@ -16,3 +16,10 @@ overrides:
   "brace-expansion@2": "^2.1.7"
   "brace-expansion@>=3.0.0": "^5.0.12"
   global-agent: "^4.1.3"
+
+# minimatch < 11.0.1 (GHSA-g3hv-75wg-m249, DoS con patrones maliciosos): sin parche fuera de la v11 y ningún
+# dependiente (electron-builder, ESLint) la admite aún; forzarla rompe lint y build. Solo se usa en desarrollo con
+# patrones de nuestra configuración y no llega al instalador. Quitar cuando electron-builder y ESLint usen minimatch 11.
+auditConfig:
+  ignoreGhsas:
+    - GHSA-g3hv-75wg-m249
